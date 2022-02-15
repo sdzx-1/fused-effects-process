@@ -69,6 +69,7 @@ import           Process.Type                   ( Elem
                                                 , inject, PV(..)
                                                 )
 import           Unsafe.Coerce                  ( unsafeCoerce )
+import System.Timeout (timeout)
 
 type HasServer (serverName :: Symbol) s ts sig m
     = ( Elems serverName ts (ToList s)
@@ -107,6 +108,21 @@ call f = do
     mvar <- liftIO newEmptyMVar
     sendReq @serverName (f $ PV mvar)
     liftIO $ takeMVar mvar
+
+callWithTimeout
+    :: forall serverName s ts sig m e b
+     . ( Elem serverName e ts
+       , ToSig e s
+       , MonadIO m
+       , HasLabelled (serverName :: Symbol) (Request s ts) sig m
+       )
+    => Int -> (PV b -> e)
+    -> m (Maybe b)
+callWithTimeout tot f = do
+    -- liftIO $ putStrLn "send call, wait response"
+    mvar <- liftIO newEmptyMVar
+    sendReq @serverName (f $ PV mvar)
+    liftIO $ timeout tot $ takeMVar mvar
 
 cast
     :: forall serverName s ts sig m e b
