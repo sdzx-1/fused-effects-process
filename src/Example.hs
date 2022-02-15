@@ -29,27 +29,36 @@ data GetVal where
 data PrintVal where
   PrintVal :: Int -> PrintVal
 
+data PutVal where
+  PutVal :: Int -> PV () %1 -> PutVal
+
 mkSigAndClass
   "SigM"
   [ ''GetVal,
-    ''PrintVal
+    ''PrintVal,
+    ''PutVal
   ]
 
-server :: (Has (MessageChan SigM) sig m, MonadIO m) => m ()
+server :: (Has (MessageChan SigM :+: State Int) sig m, MonadIO m) => m ()
 server = forever $
   withMessageChan @SigM $ \case
-    SigM1 (GetVal pv) -> withResp pv (liftIO (print "server must response") >> pure 10)
+    SigM1 (GetVal pv) -> withResp pv (liftIO (print "server must response") >> (get @Int >>= pure))
     SigM2 (PrintVal i) -> liftIO $ print i
+    SigM3 (PutVal val pv) -> withResp pv (liftIO (print "put val") >> put val)
 
-client :: ((HasServer "m" SigM '[GetVal, PrintVal]) sig m, MonadIO m) => m ()
+client :: ((HasServer "m" SigM '[GetVal, PrintVal, PutVal]) sig m, MonadIO m) => m ()
 client = do
   val <- call @"m" GetVal
   cast @"m" $ PrintVal val
+  forM_ [0 .. 100] $ \i -> do
+    call @"m" (PutVal i)
+    val <- call @"m" GetVal
+    cast @"m" $ PrintVal val
 
 m :: IO ()
 m = do
   chan <- newMessageChan @SigM
-  tid <- forkIO $ void $ runServerWithChan chan server
+  tid <- forkIO $ void $ runServerWithChan chan $ runState @Int 0 server
   runWithServer @"m" chan client
   threadDelay 1000000
   killThread tid
