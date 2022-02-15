@@ -42,7 +42,13 @@ mkSigAndClass
 server :: (Has (MessageChan SigM :+: State Int) sig m, MonadIO m) => m ()
 server = forever $
   withMessageChan @SigM $ \case
-    SigM1 (GetVal pv) -> withResp pv (liftIO (print "server must response") >> (get @Int >>= pure))
+    SigM1 (GetVal pv) ->
+      withResp
+        pv
+        ( liftIO (print "server must response")
+            >> (liftIO $ threadDelay 1000)
+            >> (get @Int >>= pure)
+        )
     SigM2 (PrintVal i) -> liftIO $ print i
     SigM3 (PutVal val pv) -> withResp pv (liftIO (print "put val") >> put val)
 
@@ -51,9 +57,10 @@ client = do
   val <- call @"m" GetVal
   cast @"m" $ PrintVal val
   forM_ [0 .. 100] $ \i -> do
-    call @"m" (PutVal i)
-    val <- call @"m" GetVal
-    cast @"m" $ PrintVal val
+    callWithTimeout @"m" 10000 (PutVal i)
+    callWithTimeout @"m" 10000 GetVal >>= \case
+      Nothing -> liftIO $ print "timeout"
+      Just val -> cast @"m" $ PrintVal val
 
 m :: IO ()
 m = do
