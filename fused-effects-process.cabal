@@ -25,13 +25,14 @@ library
                     , Process.TH
                     , Process.Type
                     , Process.Util
+                    , Example
 
     -- Modules included in this library but not exported.
     -- other-modules:
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
-    build-depends:    base ^>=4.14.3.0
+    build-depends:    base >=4.14.3.0
                     , stm
                     , fused-effects
                     , containers
@@ -46,4 +47,4 @@ test-suite fused-effects-process-test
     type:             exitcode-stdio-1.0
     hs-source-dirs:   test
     main-is:          MyLibTest.hs
-    build-depends:    base ^>=4.14.3.0
+    build-depends:    base >=4.14.3.0

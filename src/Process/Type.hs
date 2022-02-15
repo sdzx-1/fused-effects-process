@@ -4,7 +4,7 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE UndecidableInstances, LinearTypes #-}
 module Process.Type where
 import           Data.Kind                      ( Constraint
                                                 , Type
@@ -17,6 +17,7 @@ import           GHC.TypeLits                   ( ErrorMessage
                                                 , Symbol
                                                 , TypeError
                                                 )
+import Control.Concurrent (MVar)
 
 type Sum :: (Type -> Type) -> [Type] -> Type
 data Sum f r where
@@ -57,3 +58,6 @@ type family Elems (name :: Symbol) (ls :: [Type]) (ts :: [Type]) :: Constraint w
     Elems name '[] ts = ()
 
 data Fork = Fork
+
+data PV a where 
+    PV :: MVar a -> PV a

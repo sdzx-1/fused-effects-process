@@ -1,0 +1,6 @@
+packages: .
+
+source-repository-package
+  type: git
+  location: git@github.com:EMQ-YangM/fused-effects.git
+  tag: 614419fc14a571f38f9cd7e2acc5d6d5c27a0765

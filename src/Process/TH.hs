@@ -22,7 +22,7 @@ mkSig sname gs = do
         dec = DataD
             []
             t1
-            [PlainTV (mkName "a")]
+            [PlainTV (mkName "a") ()]
             Nothing
             [ GadtC
                   [mkName (sname ++ show idx)]

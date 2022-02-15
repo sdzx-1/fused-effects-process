@@ -5,6 +5,9 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE LinearTypes #-}
+{-# LANGUAGE GADTs #-}
+
 module Process.Util where
 import           Control.Algebra                ( type (:+:)
                                                 , Has
@@ -29,7 +32,7 @@ import           Control.Concurrent.STM         ( STM
 import           Control.Monad                  ( forever )
 import           Control.Monad.IO.Class         ( MonadIO(..) )
 import           Process.HasWorkGroup           ( HasWorkGroup )
-import           Process.Type                   ( Some(..) )
+import           Process.Type                   ( Some(..), PV(..) )
 
 type MessageChan f = Reader (TChan (Some f))
 
@@ -37,14 +40,16 @@ waitEither :: TChan f -> TChan l -> STM (Either f l)
 waitEither left right =
     (Left <$> readTChan left) `orElse` (Right <$> readTChan right)
 
-resp :: (MonadIO m) => MVar a -> a -> m ()
-resp tmv a = liftIO $ putMVar tmv a
+withResp :: (MonadIO m) => PV a %1 -> m a -> m ()
+withResp (PV tmv) ma = do 
+    val <- ma
+    liftIO $ putMVar tmv val
 
 -- server 
 withMessageChan
     :: forall f es sig m
      . (Has (MessageChan f) sig m, MonadIO m)
-    => (forall s . f s -> m ())
+    => (forall s . f s %1 -> m ())
     -> m ()
 withMessageChan f = do
     tc     <- ask @(TChan (Some f))
@@ -105,15 +110,15 @@ withThreeMessageChan f1 f2 f3 = do
 newMessageChan :: forall f . IO (TChan (Some f))
 newMessageChan = newTChanIO
 
-inputOutput
-    :: forall input workName s ts sig m
-     . ( Has (MessageChan input) sig m
-       , HasWorkGroup workName s ts sig m
-       , MonadIO m
-       )
-    => m ()
-    -> (forall s . input s -> m ())
-    -> m ()
-inputOutput fun fun1 = do
-    fun
-    forever $ withMessageChan @input fun1
+-- inputOutput
+--     :: forall input workName s ts sig m
+--      . ( Has (MessageChan input) sig m
+--        , HasWorkGroup workName s ts sig m
+--        , MonadIO m
+--        )
+--     => m ()
+--     -> (forall s . input s -> m ())
+--     -> m ()
+-- inputOutput fun fun1 = do
+--     fun
+--     forever $ withMessageChan @input fun1

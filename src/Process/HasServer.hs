@@ -66,7 +66,7 @@ import           Process.Type                   ( Elem
                                                 , Sum
                                                 , ToList
                                                 , ToSig
-                                                , inject
+                                                , inject, PV(..)
                                                 )
 import           Unsafe.Coerce                  ( unsafeCoerce )
 
@@ -100,12 +100,12 @@ call
        , MonadIO m
        , HasLabelled (serverName :: Symbol) (Request s ts) sig m
        )
-    => (MVar b -> e)
+    => (PV b -> e)
     -> m b
 call f = do
     -- liftIO $ putStrLn "send call, wait response"
     mvar <- liftIO newEmptyMVar
-    sendReq @serverName (f mvar)
+    sendReq @serverName (f $ PV mvar)
     liftIO $ takeMVar mvar
 
 cast
