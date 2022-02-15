@@ -12,7 +12,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE TypeOperators #-}
 module Process.Metric
-    ( Metric(..)
+    ( Metric
     , inc
     , dec
     , getVal

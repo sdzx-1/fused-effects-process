@@ -17,9 +17,11 @@ import Control.Concurrent
 import Control.Concurrent.STM
 import Control.Monad
 import Control.Monad.IO.Class
+import Data.Data (Proxy (Proxy))
 import Process.HasServer
 import Process.HasWorkGroup
-import Process.TH (mkSigAndClass)
+import Process.Metric
+import Process.TH
 import Process.Type
 import Process.Util
 
@@ -39,25 +41,40 @@ mkSigAndClass
     ''PutVal
   ]
 
-server :: (Has (MessageChan SigM :+: State Int) sig m, MonadIO m) => m ()
-server = forever $
+mkMetric "Smetric" ["s_total_get", "s_total_put", "s_total_print", "s_all"]
+
+server :: (Has (MessageChan SigM :+: State Int :+: Metric Smetric) sig m, MonadIO m) => m ()
+server = forever $ do
+  inc s_all
   withMessageChan @SigM $ \case
     SigM1 (GetVal pv) ->
       withResp
         pv
-        ( liftIO (print "server must response")
-            >> (liftIO $ threadDelay 1000)
-            >> (get @Int >>= pure)
+        ( do
+            liftIO (print "server must response")
+            (liftIO $ threadDelay 1000)
+            inc s_total_get
+            (get @Int >>= pure)
         )
-    SigM2 (PrintVal i) -> liftIO $ print i
-    SigM3 (PutVal val pv) -> withResp pv (liftIO (print "put val") >> put val)
+    SigM2 (PrintVal i) -> do
+      inc s_total_print
+      all_metrics <- getAll @Smetric Proxy
+      liftIO $ print (all_metrics, i)
+    SigM3 (PutVal val pv) ->
+      withResp
+        pv
+        ( do
+            liftIO (print "put val")
+            inc s_total_put
+            put val
+        )
 
 client :: ((HasServer "m" SigM '[GetVal, PrintVal, PutVal]) sig m, MonadIO m) => m ()
 client = do
   val <- call @"m" GetVal
   cast @"m" $ PrintVal val
   forM_ [0 .. 100] $ \i -> do
-    callWithTimeout @"m" 10000 (PutVal i)
+    call @"m" (PutVal i)
     callWithTimeout @"m" 10000 GetVal >>= \case
       Nothing -> liftIO $ print "timeout"
       Just val -> cast @"m" $ PrintVal val
@@ -65,7 +82,7 @@ client = do
 m :: IO ()
 m = do
   chan <- newMessageChan @SigM
-  tid <- forkIO $ void $ runServerWithChan chan $ runState @Int 0 server
+  tid <- forkIO $ void $ runServerWithChan chan $ runState @Int 0 $ runMetric @Smetric server
   runWithServer @"m" chan client
   threadDelay 1000000
   killThread tid
