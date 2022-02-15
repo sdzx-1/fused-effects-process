@@ -70,8 +70,8 @@ withTwoMessageChan
      . (Has (   MessageChan g
             :+: MessageChan f
             ) sig m, MonadIO m)
-    => (forall s . f s -> m ())
-    -> (forall s . g s -> m ())
+    => (forall s . f s %1 -> m ())
+    -> (forall s . g s %1 -> m ())
     -> m ()
 withTwoMessageChan f1 f2 = do
     f <- ask @(TChan (Some f))
@@ -94,9 +94,9 @@ withThreeMessageChan
             :+: MessageChan f
             :+: MessageChan l
             ) sig m, MonadIO m)
-    => (forall s . f s -> m ())
-    -> (forall s . g s -> m ())
-    -> (forall s . l s -> m ())
+    => (forall s . f s %1 -> m ())
+    -> (forall s . g s %1 -> m ())
+    -> (forall s . l s %1 -> m ())
     -> m ()
 withThreeMessageChan f1 f2 f3 = do
     f <- ask @(TChan (Some f))
