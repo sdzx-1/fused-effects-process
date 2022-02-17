@@ -32,7 +32,7 @@ import           Control.Concurrent.STM         ( STM
 import           Control.Monad                  ( forever )
 import           Control.Monad.IO.Class         ( MonadIO(..) )
 import           Process.HasWorkGroup           ( HasWorkGroup )
-import           Process.Type                   ( Some(..), PV(..) )
+import           Process.Type                   ( Some(..), RespVal(..) )
 
 type MessageChan f = Reader (TChan (Some f))
 
@@ -40,8 +40,8 @@ waitEither :: TChan f -> TChan l -> STM (Either f l)
 waitEither left right =
     (Left <$> readTChan left) `orElse` (Right <$> readTChan right)
 
-withResp :: (MonadIO m) => PV a %1 -> m a -> m ()
-withResp (PV tmv) ma = do 
+withResp :: (MonadIO m) => RespVal a %1 -> m a -> m ()
+withResp (RespVal tmv) ma = do 
     val <- ma
     liftIO $ putMVar tmv val
 

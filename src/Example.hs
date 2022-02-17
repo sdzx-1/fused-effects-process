@@ -26,13 +26,13 @@ import Process.Type
 import Process.Util
 
 data GetVal where
-  GetVal :: PV Int %1 -> GetVal
+  GetVal :: RespVal Int %1 -> GetVal
 
 data PrintVal where
   PrintVal :: Int -> PrintVal
 
 data PutVal where
-  PutVal :: Int -> PV () %1 -> PutVal
+  PutVal :: Int -> RespVal () %1 -> PutVal
 
 mkSigAndClass
   "SigM"
@@ -59,7 +59,8 @@ server = forever $ do
     SigM2 (PrintVal i) -> do
       inc s_total_print
       all_metrics <- getAll @Smetric Proxy
-      liftIO $ print (all_metrics, i)
+      let res = zip ["s_total_get", "s_total_put", "s_total_print", "s_all"] all_metrics
+      liftIO $ print (res, i)
     SigM3 (PutVal val pv) ->
       withResp
         pv
@@ -75,7 +76,7 @@ client = do
   cast @"m" $ PrintVal val
   forM_ [0 .. 100] $ \i -> do
     call @"m" (PutVal i)
-    callWithTimeout @"m" 10000 GetVal >>= \case
+    callTimeout @"m" 10000 GetVal >>= \case
       Nothing -> liftIO $ print "timeout"
       Just val -> cast @"m" $ PrintVal val
 

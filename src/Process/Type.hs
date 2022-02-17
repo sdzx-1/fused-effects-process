@@ -59,5 +59,5 @@ type family Elems (name :: Symbol) (ls :: [Type]) (ts :: [Type]) :: Constraint w
 
 data Fork = Fork
 
-data PV a where 
-    PV :: MVar a -> PV a
+data RespVal a where 
+    RespVal :: MVar a -> RespVal a

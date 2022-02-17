@@ -66,7 +66,7 @@ import           Process.Type                   ( Elem
                                                 , Sum
                                                 , ToList
                                                 , ToSig
-                                                , inject, PV(..)
+                                                , inject, RespVal(..)
                                                 )
 import           Unsafe.Coerce                  ( unsafeCoerce )
 import System.Timeout (timeout)
@@ -101,27 +101,25 @@ call
        , MonadIO m
        , HasLabelled (serverName :: Symbol) (Request s ts) sig m
        )
-    => (PV b -> e)
+    => (RespVal b -> e)
     -> m b
 call f = do
-    -- liftIO $ putStrLn "send call, wait response"
     mvar <- liftIO newEmptyMVar
-    sendReq @serverName (f $ PV mvar)
+    sendReq @serverName (f $ RespVal mvar)
     liftIO $ takeMVar mvar
 
-callWithTimeout
+callTimeout
     :: forall serverName s ts sig m e b
      . ( Elem serverName e ts
        , ToSig e s
        , MonadIO m
        , HasLabelled (serverName :: Symbol) (Request s ts) sig m
        )
-    => Int -> (PV b -> e)
+    => Int -> (RespVal b -> e)
     -> m (Maybe b)
-callWithTimeout tot f = do
-    -- liftIO $ putStrLn "send call, wait response"
+callTimeout tot f = do
     mvar <- liftIO newEmptyMVar
-    sendReq @serverName (f $ PV mvar)
+    sendReq @serverName (f $ RespVal mvar)
     liftIO $ timeout tot $ takeMVar mvar
 
 cast
