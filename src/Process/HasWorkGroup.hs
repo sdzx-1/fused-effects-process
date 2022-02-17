@@ -39,14 +39,14 @@ import           Control.Concurrent             ( MVar
                                                 , forkIO
                                                 , newEmptyMVar
                                                 , putMVar
-                                                , takeMVar
+                                                , takeMVar, newMVar
                                                 )
 import           Control.Concurrent.STM         ( TChan
                                                 , atomically
                                                 , isEmptyTChan
                                                 , newTChanIO
                                                 , readTChan
-                                                , writeTChan
+                                                , writeTChan, TVar, newTVarIO, writeTVar, readTVar
                                                 )
 import           Control.Effect.Labelled        ( type (:+:)(..)
                                                 , Algebra(..)
@@ -80,6 +80,7 @@ import           Process.Type                   ( Elem
                                                 , RespVal(..)
                                                 )
 import           Unsafe.Coerce                  ( unsafeCoerce )
+import           Control.Exception
 
 type HasWorkGroup (serverName :: Symbol) s ts sig m
     = ( Elems serverName ts (ToList s)
@@ -227,6 +228,7 @@ deleteChan i = send (DeleteWorker @s i)
 data WorkGroupState s ts = WorkGroupState
     { workMap :: IntMap (TChan (Sum s ts))
     , counter :: Int
+    , resultMap :: TVar (IntMap (MVar (Either SomeException ())))
     }
 
 newtype RequestC s ts m a = RequestC { unRequestC :: StateC (WorkGroupState s ts) m a }
@@ -257,12 +259,18 @@ instance (Algebra sig m, MonadIO m) => Algebra (Request s ts :+: Manager s :+: s
             pure ctx
         R (L (CreateWorker fun)) -> do
             chan <- liftIO newTChanIO
-            liftIO $ forkIO $ void $ fun chan
-            state@WorkGroupState { workMap, counter } <-
+            tmv <- liftIO newEmptyMVar 
+            liftIO $ forkIO $ do
+                res <- try @SomeException $ fun chan
+                liftIO $ putMVar tmv res
+            state@WorkGroupState { workMap, counter, resultMap } <-
                 get @(WorkGroupState s ts)
             let newcounter = counter + 1
                 newmap     = IntMap.insert counter (unsafeCoerce chan) workMap
-            put state { workMap = newmap, counter = newcounter }
+            liftIO $ atomically $ do
+                im <- readTVar resultMap
+                writeTVar resultMap (IntMap.insert counter tmv im) 
+            put state { workMap = newmap, counter = newcounter, resultMap = resultMap }
             pure ctx
         R ((L (DeleteWorker i))) -> do
             state@WorkGroupState { workMap, counter } <-
@@ -271,15 +279,19 @@ instance (Algebra sig m, MonadIO m) => Algebra (Request s ts :+: Manager s :+: s
             pure ctx
         R (R signa) -> alg (unRequestC . hdl) (R signa) ctx
 
-initWorkGroupState :: WorkGroupState s ts
-initWorkGroupState = WorkGroupState { workMap = IntMap.empty, counter = 0 }
+initWorkGroupState :: TVar (IntMap (MVar (Either SomeException ()))) -> WorkGroupState s ts
+initWorkGroupState resultMap = WorkGroupState { workMap = IntMap.empty
+                                              , counter = 0
+                                              , resultMap = resultMap 
+                                              }
 
 runWithWorkGroup
     :: forall serverName s ts m a
      . MonadIO m
     => Labelled (serverName :: Symbol) (RequestC s ts) m a
     -> m a
-runWithWorkGroup f =
-    evalState @(WorkGroupState s ts) initWorkGroupState
+runWithWorkGroup f = do 
+    tvar <- liftIO $ newTVarIO (IntMap.empty)
+    evalState @(WorkGroupState s ts) (initWorkGroupState tvar)
         $ unRequestC
         $ runLabelled f
