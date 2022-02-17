@@ -77,6 +77,7 @@ import           Process.Type                   ( Elem
                                                 , ToList
                                                 , ToSig
                                                 , inject
+                                                , RespVal(..)
                                                 )
 import           Unsafe.Coerce                  ( unsafeCoerce )
 
@@ -93,7 +94,7 @@ type Request :: (Type -> Type)
             -> Type
 data Request s ts m a where
     SendReq ::(ToSig t s) =>Int -> t -> Request s ts m ()
-    SendAllCall ::(ToSig t s) => (MVar b -> t) -> Request s ts m [MVar b]
+    SendAllCall ::(ToSig t s) => (RespVal b -> t) -> Request s ts m [MVar b]
     SendAllCast ::(ToSig t s) => t -> Request s ts m ()
 
 type Manager :: (Type -> Type) -> (Type -> Type) -> Type -> Type
@@ -118,7 +119,7 @@ sendAllCall
        , ToSig t s
        , HasLabelled serverName (Request s ts) sig m
        )
-    => (MVar b -> t)
+    => (RespVal b -> t)
     -> m [MVar b]
 sendAllCall t = sendLabelled @serverName (SendAllCall t)
 
@@ -154,7 +155,7 @@ callAll
        , HasLabelled serverName (Request s ts) sig m
        , MonadIO m
        )
-    => (MVar b -> t)
+    => (RespVal b -> t)
     -> m [b]
 callAll t = do
     vs <- sendLabelled @serverName (SendAllCall t)
@@ -244,8 +245,8 @@ instance (Algebra sig m, MonadIO m) => Algebra (Request s ts :+: Manager s :+: s
         L (SendAllCall t) -> do
             wm  <- workMap <$> get @(WorkGroupState s ts)
             mvs <- forM (IntMap.elems wm) $ \ch -> do
-                mv <- liftIO newEmptyMVar
-                liftIO $ atomically $ writeTChan ch (inject (t mv))
+                mv <-  liftIO newEmptyMVar
+                liftIO $ atomically $ writeTChan ch (inject (t $ RespVal mv))
                 pure mv
             pure (mvs <$ ctx)
         L (SendAllCast t) -> do

@@ -122,10 +122,12 @@ client = do
         void $
           runWorkerWithChan c $
             runServerWithChan chan $
-              runState @Int 0 $ runMetric @Smetric server
+              runState @Int 0 $
+                runMetric @Smetric server
     )
 
-  -- la <- callAll @"w" A
+  la <- callAll @"w" A
+  liftIO $ print la
   castAll @"w" $ B 10
 
   val <- call @"m" GetVal
