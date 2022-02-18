@@ -33,7 +33,7 @@ import           Control.Carrier.State.Strict   ( Algebra
                                                 , StateC(..)
                                                 , evalState
                                                 , get
-                                                , put
+                                                , put, gets
                                                 )
 import           Control.Concurrent             ( MVar
                                                 , forkIO
@@ -77,10 +77,11 @@ import           Process.Type                   ( Elem
                                                 , ToList
                                                 , ToSig
                                                 , inject
-                                                , RespVal(..)
+                                                , RespVal(..), ProcessState(..), Result(..)
                                                 )
 import           Unsafe.Coerce                  ( unsafeCoerce )
 import           Control.Exception
+import Data.Time (getCurrentTime)
 
 type HasWorkGroup (serverName :: Symbol) s ts sig m
     = ( Elems serverName ts (ToList s)
@@ -226,9 +227,9 @@ deleteChan
 deleteChan i = send (DeleteWorker @s i)
 
 data WorkGroupState s ts = WorkGroupState
-    { workMap :: IntMap (TChan (Sum s ts))
+    { workMap :: IntMap (ProcessState s ts)
     , counter :: Int
-    , resultMap :: TVar (IntMap (MVar (Either SomeException ())))
+    , terminateMap :: TVar (IntMap (MVar Result))
     }
 
 newtype RequestC s ts m a = RequestC { unRequestC :: StateC (WorkGroupState s ts) m a }
@@ -237,52 +238,66 @@ newtype RequestC s ts m a = RequestC { unRequestC :: StateC (WorkGroupState s ts
 instance (Algebra sig m, MonadIO m) => Algebra (Request s ts :+: Manager s :+: sig) (RequestC s ts m) where
     alg hdl sig ctx = RequestC $ case sig of
         L (SendReq i t) -> do
-            wm <- workMap <$> get @(WorkGroupState s ts)
+            wm <- gets @(WorkGroupState s ts) (workMap)
             case IntMap.lookup i wm of
                 Nothing -> error "never happend.."
                 Just ch -> do
-                    liftIO $ atomically $ writeTChan ch (inject t)
+                    liftIO $ atomically $ writeTChan (pChan ch) (inject t)
                     pure (() <$ ctx)
 
         L (SendAllCall t) -> do
-            wm  <- workMap <$> get @(WorkGroupState s ts)
+            wm  <- gets @(WorkGroupState s ts) workMap
             mvs <- forM (IntMap.elems wm) $ \ch -> do
                 mv <-  liftIO newEmptyMVar
-                liftIO $ atomically $ writeTChan ch (inject (t $ RespVal mv))
+                liftIO $ atomically $ writeTChan (pChan ch) (inject (t $ RespVal mv))
                 pure mv
             pure (mvs <$ ctx)
+
         L (SendAllCast t) -> do
-            wm <- workMap <$> get @(WorkGroupState s ts)
+            wm <- gets @(WorkGroupState s ts) workMap
             IntMap.traverseWithKey
-                (\_ ch -> liftIO $ atomically $ writeTChan ch (inject t))
+                (\_ ch -> liftIO $ atomically $ writeTChan (pChan ch) (inject t))
                 wm
             pure ctx
+
         R (L (CreateWorker fun)) -> do
-            chan <- liftIO newTChanIO
-            tmv <- liftIO newEmptyMVar 
-            liftIO $ forkIO $ do
-                res <- try @SomeException $ fun chan
-                liftIO $ putMVar tmv res
-            state@WorkGroupState { workMap, counter, resultMap } <-
+
+            -- init resource
+            state@WorkGroupState { workMap, counter, terminateMap } <-
                 get @(WorkGroupState s ts)
-            let newcounter = counter + 1
-                newmap     = IntMap.insert counter (unsafeCoerce chan) workMap
+            chan <- liftIO newTChanIO
+            tmv <- liftIO newEmptyMVar
+
+            -- fork process
+            tid <- liftIO $ forkIO $ do
+                res <- try @SomeException $ fun chan
+                tim <- getCurrentTime
+                liftIO $ putMVar tmv (Result tim counter res)
+
+            -- update resultMap
             liftIO $ atomically $ do
-                im <- readTVar resultMap
-                writeTVar resultMap (IntMap.insert counter tmv im) 
-            put state { workMap = newmap, counter = newcounter, resultMap = resultMap }
+                im <- readTVar terminateMap
+                writeTVar terminateMap (IntMap.insert counter tmv im) 
+
+            -- update workMap
+            let newcounter = counter + 1
+                newmap     = IntMap.insert counter (ProcessState (unsafeCoerce chan) counter tid) workMap
+            put state { workMap = newmap, counter = newcounter}
+
             pure ctx
+
         R ((L (DeleteWorker i))) -> do
             state@WorkGroupState { workMap, counter } <-
                 get @(WorkGroupState s ts)
             put state { workMap = IntMap.delete i workMap }
             pure ctx
+
         R (R signa) -> alg (unRequestC . hdl) (R signa) ctx
 
-initWorkGroupState :: TVar (IntMap (MVar (Either SomeException ()))) -> WorkGroupState s ts
-initWorkGroupState resultMap = WorkGroupState { workMap = IntMap.empty
+initWorkGroupState :: TVar (IntMap (MVar Result)) -> WorkGroupState s ts
+initWorkGroupState terminateMap = WorkGroupState { workMap = IntMap.empty
                                               , counter = 0
-                                              , resultMap = resultMap 
+                                              , terminateMap = terminateMap 
                                               }
 
 runWithWorkGroup
