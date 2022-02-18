@@ -74,9 +74,6 @@ type family Elems (name :: Symbol) (ls :: [Type]) (ts :: [Type]) :: Constraint w
 data RespVal a where
   RespVal :: MVar a -> RespVal a
 
--- process fork
-data Fork = Fork
-
 -- workGroup, Process State (Process -- Worker)
 data ProcessState s ts = ProcessState
   { pChan :: TChan (Sum s ts),

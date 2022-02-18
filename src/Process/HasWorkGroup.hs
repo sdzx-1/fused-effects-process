@@ -88,7 +88,6 @@ import GHC.TypeLits (Symbol)
 import Process.Type
   ( Elem,
     Elems,
-    Fork (Fork),
     ProcessState (..),
     RespVal (..),
     Result (..),

@@ -26,6 +26,7 @@ library
                     , Process.Type
                     , Process.Util
                     , Example
+                    , E1
 
     -- Modules included in this library but not exported.
     -- other-modules:
