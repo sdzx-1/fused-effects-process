@@ -117,14 +117,12 @@ client ::
   m ()
 client = do
   chan <- ask @(TChan (Some SigM))
-  createWorker @SigW
-    ( \c ->
-        void $
-          runWorkerWithChan c $
-            runServerWithChan chan $
-              runState @Int 0 $
-                runMetric @Smetric server
-    )
+  createWorker @SigW $ \c ->
+    void $
+      runWorkerWithChan c $
+        runServerWithChan chan $
+          runState @Int 0 $
+            runMetric @Smetric server
 
   la <- callAll @"w" A
   liftIO $ print la
