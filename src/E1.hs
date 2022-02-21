@@ -157,6 +157,7 @@ mProcess = forever $ do
         SigException1 (ProcessR i res) -> do
           liftIO $ print $ "some process terminate " ++ show (i, res)
           clearTVar @SigCommand i -- clean tvar
+          deleteChan @SigCommand i -- remove process channel
     )
     ( \case
         SigCreate1 Create -> do
@@ -229,8 +230,8 @@ client = forever $ do
   case readMaybe @Int val of
     Just n -> do
       liftIO $ print $ "input value is: " ++ show n
-      -- cast @"s" $ StopProcess n
-      cast @"s" $ KillProcess n
+      cast @"s" $ StopProcess n
+      -- cast @"s" $ KillProcess n
     Nothing -> do
       cast @"s" Create
       liftIO $ print "cast create "
