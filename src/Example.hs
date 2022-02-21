@@ -117,7 +117,7 @@ client ::
   m ()
 client = do
   chan <- ask @(TChan (Some SigM))
-  createWorker @SigW $ \c ->
+  createWorker @SigW $ \_ c ->
     void $
       runWorkerWithChan c $
         runServerWithChan chan $
