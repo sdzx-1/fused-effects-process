@@ -102,11 +102,15 @@ data Info where
 data ProcessStartTimeoutCheck where
   ProcessStartTimeoutCheck :: RespVal TimeoutCheckFinish %1 -> ProcessStartTimeoutCheck
 
+data ProcessWork where
+  ProcessWork :: IO () -> RespVal () %1 -> ProcessWork
+
 mkSigAndClass
   "SigCommand"
   [ ''Stop,
     ''Info,
-    ''ProcessStartTimeoutCheck
+    ''ProcessStartTimeoutCheck,
+    ''ProcessWork
   ]
 
 data Create where
@@ -133,7 +137,7 @@ mProcess ::
       )
       sig
       m,
-    HasWorkGroup "w" SigCommand '[Stop, Info, ProcessStartTimeoutCheck] sig m,
+    HasWorkGroup "w" SigCommand '[Stop, Info, ProcessStartTimeoutCheck, ProcessWork] sig m,
     MonadIO m
   ) =>
   m ()
@@ -217,6 +221,13 @@ mWork = forever $ do
             liftIO $ print $ "process " ++ show pid ++ " response timoue check"
             pure TimeoutCheckFinish
         )
+    SigCommand4 (ProcessWork work rsp) -> do
+      withResp
+        rsp
+        ( do
+            liftIO work
+            pure ()
+        )
 
 ------------------------ create client
 client ::
@@ -231,7 +242,7 @@ client = forever $ do
     Just n -> do
       liftIO $ print $ "input value is: " ++ show n
       cast @"s" $ StopProcess n
-      -- cast @"s" $ KillProcess n
+    -- cast @"s" $ KillProcess n
     Nothing -> do
       cast @"s" Create
       liftIO $ print "cast create "

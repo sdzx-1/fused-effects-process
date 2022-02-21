@@ -182,7 +182,7 @@ callAll ::
   m [b]
 callAll t = do
   vs <- sendLabelled @serverName (SendAllCall t)
-  mapM (liftIO . takeMVar) (map snd vs)
+  mapM (liftIO . takeMVar . snd) vs
 
 mcall ::
   forall serverName s ts sig m e b.
