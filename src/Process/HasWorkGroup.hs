@@ -123,7 +123,7 @@ data Request s ts m a where
 type Manager :: (Type -> Type) -> (Type -> Type) -> Type -> Type
 data Manager s m a where
   CreateWorker :: (Int -> TChan (Some s) -> IO ()) -> Manager s m ()
-  DeleteWorker :: Int -> Manager s m ()
+  DeleteChannel :: Int -> Manager s m ()
   ClearTVar :: Int -> Manager s m ()
   KillWorker :: Int -> Manager s m ()
   GetAllWorker :: Manager s m [Int]
@@ -285,7 +285,7 @@ createWorker fun = send (CreateWorker fun)
 
 deleteChan ::
   forall s sig m a. (MonadIO m, Has (Manager s) sig m) => Int -> m ()
-deleteChan i = send (DeleteWorker @s i)
+deleteChan i = send (DeleteChannel @s i)
 
 clearTVar ::
   forall s sig m a. (MonadIO m, Has (Manager s) sig m) => Int -> m ()
@@ -360,7 +360,7 @@ instance (Algebra sig m, MonadIO m) => Algebra (Request s ts :+: Manager s :+: s
       pure ctx
 
     -- delete work chann
-    R ((L (DeleteWorker i))) -> do
+    R ((L (DeleteChannel i))) -> do
       state@WorkGroupState {workMap, counter, terminateMap} <-
         get @(WorkGroupState s ts)
       put state {workMap = IntMap.delete i workMap}
