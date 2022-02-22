@@ -125,9 +125,17 @@ data StopProcess where
 data KillProcess where
   KillProcess :: Int -> KillProcess
 
+data Fwork where
+  Fwork :: [IO ()] -> Fwork
+
 mkSigAndClass
   "SigCreate"
-  [''Create, ''GetInfo, ''StopProcess, ''KillProcess]
+  [ ''Create,
+    ''GetInfo,
+    ''StopProcess,
+    ''KillProcess,
+    ''Fwork
+  ]
 
 mProcess ::
   ( Has
@@ -137,7 +145,16 @@ mProcess ::
       )
       sig
       m,
-    HasWorkGroup "w" SigCommand '[Stop, Info, ProcessStartTimeoutCheck, ProcessWork] sig m,
+    HasWorkGroup
+      "w"
+      SigCommand
+      '[ Stop,
+         Info,
+         ProcessStartTimeoutCheck,
+         ProcessWork
+       ]
+      sig
+      m,
     MonadIO m
   ) =>
   m ()
@@ -179,6 +196,9 @@ mProcess = forever $ do
         SigCreate4 (KillProcess i) -> do
           killWorker @SigCommand i
           deleteChan @SigCommand i
+        SigCreate5 (Fwork ios) -> do
+          res <- sendWorks @"w" ios ProcessWork
+          liftIO $ print $ snd res
     )
 
 -------------------------------------Manager - Work, Work
@@ -231,7 +251,17 @@ mWork = forever $ do
 
 ------------------------ create client
 client ::
-  ( HasServer "s" SigCreate '[Create, GetInfo, StopProcess, KillProcess] sig m,
+  ( HasServer
+      "s"
+      SigCreate
+      '[ Create,
+         GetInfo,
+         StopProcess,
+         KillProcess,
+         Fwork
+       ]
+      sig
+      m,
     MonadIO m
   ) =>
   m ()
@@ -239,6 +269,8 @@ client = forever $ do
   liftIO $ print "input "
   val <- liftIO getLine
   case readMaybe @Int val of
+    Just 5 -> do
+      cast @"s" $ Fwork [print 1, print 2, print 3]
     Just n -> do
       liftIO $ print $ "input value is: " ++ show n
       cast @"s" $ StopProcess n
@@ -283,5 +315,8 @@ runmProcess = do
             runWithWorkGroup' @"w" tvar $
               mProcess
 
-  print "start client"
-  runWithServer @"s" sc client
+  print "fork client"
+  forkIO $ void $ runWithServer @"s" sc client
+
+  forever $ do
+    threadDelay 10000000

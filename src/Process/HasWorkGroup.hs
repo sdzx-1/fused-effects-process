@@ -5,6 +5,8 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE LinearTypes #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE RankNTypes #-}
@@ -124,6 +126,7 @@ data Manager s m a where
   DeleteWorker :: Int -> Manager s m ()
   ClearTVar :: Int -> Manager s m ()
   KillWorker :: Int -> Manager s m ()
+  GetAllWorker :: Manager s m [Int]
 
 sendReq ::
   forall (serverName :: Symbol) s ts sig m t.
@@ -170,6 +173,43 @@ callById i f = do
   mvar <- liftIO newEmptyMVar
   sendReq @serverName i (f $ RespVal mvar)
   liftIO $ takeMVar mvar
+
+data Reset
+  = ResetWorker [Int]
+  | ResetWork [IO ()]
+  | NoReset
+
+instance Show Reset where
+  show = \case
+    ResetWorker ns -> "left worker: " ++ show (length ns)
+    ResetWork ios -> "left work: " ++ show (length ios)
+    NoReset -> "no left"
+
+-- | send works to it workers
+sendWorks ::
+  forall serverName s ts sig m e b.
+  ( Elem serverName e ts,
+    ToSig e s,
+    MonadIO m,
+    HasLabelled (serverName :: Symbol) (Request s ts) sig m,
+    Has (Manager s) sig m
+  ) =>
+  [IO ()] ->
+  (IO () -> RespVal () -> e) ->
+  m ([(Int, MVar ())], Reset)
+sendWorks works f = do
+  workers <- getAllWorker @s
+  let allWork = length works
+      allWorker = length workers
+      (workPair, rest) = case compare allWorker allWork of
+        EQ -> (zip workers works, NoReset)
+        GT -> let (wera, werb) = splitAt allWork workers in (zip wera works, ResetWorker werb)
+        LT -> let (wa, wb) = splitAt allWorker works in (zip workers wa, ResetWork wb)
+  t <- forM workPair $ \(wid, work) -> do
+    mvar <- liftIO newEmptyMVar
+    sendReq @serverName wid (f work $ RespVal mvar)
+    pure (wid, mvar)
+  pure (t, rest)
 
 callAll ::
   forall (serverName :: Symbol) s ts sig m t b.
@@ -254,6 +294,10 @@ clearTVar i = send (ClearTVar @s i)
 killWorker ::
   forall s sig m a. (MonadIO m, Has (Manager s) sig m) => Int -> m ()
 killWorker i = send (KillWorker @s i)
+
+getAllWorker ::
+  forall s sig m a. (MonadIO m, Has (Manager s) sig m) => m [Int]
+getAllWorker = send (GetAllWorker @s)
 
 data WorkGroupState s ts = WorkGroupState
   { workMap :: IntMap (ProcessState s ts),
@@ -340,6 +384,9 @@ instance (Algebra sig m, MonadIO m) => Algebra (Request s ts :+: Manager s :+: s
         Just ProcessState {tid} -> do
           liftIO $ killThread tid
           pure ctx
+    R (L GetAllWorker) -> do
+      wm <- gets @(WorkGroupState s ts) workMap
+      pure (IntMap.keys wm <$ ctx)
     R (R signa) -> alg (unRequestC . hdl) (R signa) ctx
 
 initWorkGroupState :: TVar (IntMap (MVar Result)) -> WorkGroupState s ts
