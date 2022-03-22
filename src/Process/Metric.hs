@@ -26,6 +26,7 @@ module Process.Metric
     Vec (..),
     K (..),
     Vlength (..),
+    NameVector (..),
     module Data.Default.Class,
   )
 where
@@ -51,6 +52,7 @@ import Data.Maybe
     fromJust,
     fromMaybe,
   )
+import qualified Data.Vector as V
 import Data.Vector.Mutable
   ( IOVector,
     replicate,
@@ -60,75 +62,82 @@ import Data.Vector.Mutable
   )
 import qualified Data.Vector.Mutable as M
 import GHC.TypeLits
-  ( KnownSymbol,
+  ( KnownNat,
+    Nat,
     Symbol,
-    symbolVal,
+    natVal,
   )
 import Language.Haskell.TH hiding (Type)
 import Text.Read (readMaybe)
 import Prelude hiding (replicate)
 import qualified Prelude as P
 
-type K :: Symbol -> Type
+type K :: Nat -> Type
 data K s where
   K :: K s
 
-toi :: forall s. (KnownSymbol s) => K s -> Int
-toi _ = fromJust $ readMaybe $ symbolVal (Proxy :: Proxy s)
+toi :: forall s. (KnownNat s) => K s -> Int
+toi _ = fromIntegral $ natVal (Proxy :: Proxy s)
 
-get :: (KnownSymbol s, Default a) => (a -> K s) -> Int
+get :: (KnownNat s, Default a) => (a -> K s) -> Int
 get v1 = toi . v1 $ def
 
 class Vlength a where
   vlength :: a -> Int
 
+class NameVector a where
+  vName :: a -> V.Vector String
+
 fun ::
-  (KnownSymbol s, Default a) =>
+  (KnownNat s, Default a) =>
   IOVector Int ->
   (a -> K s) ->
   (Int -> Int) ->
   IO ()
 fun v idx f = unsafeModify v f (get idx)
 
-gv :: (KnownSymbol s, Default a) => IOVector Int -> (a -> K s) -> IO Int
+gv :: (KnownNat s, Default a) => IOVector Int -> (a -> K s) -> IO Int
 gv v idx = unsafeRead v (get idx)
 
-pv :: (KnownSymbol s, Default a) => IOVector Int -> (a -> K s) -> Int -> IO ()
+pv :: (KnownNat s, Default a) => IOVector Int -> (a -> K s) -> Int -> IO ()
 pv v idx = unsafeWrite v (get idx)
 
-inc1 :: (KnownSymbol s, Default a) => IOVector Int -> (a -> K s) -> IO ()
+inc1 :: (KnownNat s, Default a) => IOVector Int -> (a -> K s) -> IO ()
 inc1 v idx = fun v idx (+ 1)
 
-dec1 :: (KnownSymbol s, Default a) => IOVector Int -> (a -> K s) -> IO ()
+dec1 :: (KnownNat s, Default a) => IOVector Int -> (a -> K s) -> IO ()
 dec1 v idx = fun v idx (\x -> x - 1)
 
 type Metric :: Type -> (Type -> Type) -> Type -> Type
 data Metric v m a where
-  Inc :: KnownSymbol s => (v -> K s) -> Metric v m ()
-  Dec :: KnownSymbol s => (v -> K s) -> Metric v m ()
-  GetVal :: KnownSymbol s => (v -> K s) -> Metric v m Int
-  PutVal :: KnownSymbol s => (v -> K s) -> Int -> Metric v m ()
-  GetAll :: Proxy v -> Metric v m [Int]
+  Inc :: KnownNat s => (v -> K s) -> Metric v m ()
+  Dec :: KnownNat s => (v -> K s) -> Metric v m ()
+  GetVal :: KnownNat s => (v -> K s) -> Metric v m Int
+  PutVal :: KnownNat s => (v -> K s) -> Int -> Metric v m ()
+  GetAll :: Proxy v -> Metric v m [(String, Int)]
 
-inc :: (Has (Metric v) sig m, KnownSymbol s) => (v -> K s) -> m ()
+inc :: (Has (Metric v) sig m, KnownNat s) => (v -> K s) -> m ()
 inc g = send (Inc g)
 
-dec :: (Has (Metric v) sig m, KnownSymbol s) => (v -> K s) -> m ()
+dec :: (Has (Metric v) sig m, KnownNat s) => (v -> K s) -> m ()
 dec g = send (Dec g)
 
-getVal :: (Has (Metric v) sig m, KnownSymbol s) => (v -> K s) -> m Int
+getVal :: (Has (Metric v) sig m, KnownNat s) => (v -> K s) -> m Int
 getVal g = send (GetVal g)
 
-putVal :: (Has (Metric v) sig m, KnownSymbol s) => (v -> K s) -> Int -> m ()
+putVal :: (Has (Metric v) sig m, KnownNat s) => (v -> K s) -> Int -> m ()
 putVal g v = send (PutVal g v)
 
-getAll :: Has (Metric v) sig m => Proxy v -> m [Int]
+getAll :: Has (Metric v) sig m => Proxy v -> m [(String, Int)]
 getAll v = send (GetAll v)
 
 newtype MetriC v m a = MetriC {unMetric :: ReaderC (IOVector Int) m a}
   deriving (Functor, Applicative, Monad, MonadIO)
 
-instance (Algebra sig m, MonadIO m, Default v) => Algebra (Metric v :+: sig) (MetriC v m) where
+instance
+  (Algebra sig m, MonadIO m, Default v, NameVector v) =>
+  Algebra (Metric v :+: sig) (MetriC v m)
+  where
   alg hdl sig ctx = MetriC $
     ReaderC $ \iov -> case sig of
       L (Inc g) -> do
@@ -144,7 +153,7 @@ instance (Algebra sig m, MonadIO m, Default v) => Algebra (Metric v :+: sig) (Me
         liftIO $ pv iov g v
         pure ctx
       L (GetAll v) -> do
-        v <- liftIO $ M.foldr' (:) [] iov
+        v <- liftIO $ M.ifoldr' (\i a b -> (vName @v undefined V.! i, a) : b) [] iov
         pure (v <$ ctx)
       R signa -> alg (runReader iov . unMetric . hdl) signa ctx
 

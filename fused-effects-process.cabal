@@ -20,6 +20,7 @@ extra-source-files: CHANGELOG.md
 
 library
     exposed-modules:  Process.Metric
+                    , Process.HasPeerGroup
                     , Process.HasServer
                     , Process.HasWorkGroup
                     , Process.TH
@@ -36,11 +37,14 @@ library
     build-depends:    base >=4.14.3.0
                     , stm
                     , fused-effects
+                    , optics
+                    , fused-effects-optics
                     , containers
                     , vector
                     , data-default-class
                     , template-haskell
                     , time
+                    , aeson
     hs-source-dirs:   src
     default-language: Haskell2010
 

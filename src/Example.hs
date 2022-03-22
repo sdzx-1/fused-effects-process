@@ -4,6 +4,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE LinearTypes #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -19,10 +20,11 @@ import Control.Concurrent.STM
 import Control.Monad
 import Control.Monad.IO.Class
 import Data.Data (Proxy (Proxy))
+-- import Data.Vector (fromList)
 import Process.HasServer
 import Process.HasWorkGroup
 import Process.Metric
-import Process.TH
+import Process.TH (fromList, mkMetric, mkSigAndClass)
 import Process.Type
 import Process.Util
 
@@ -59,7 +61,12 @@ mkSigAndClass
 
 -------------------
 
-mkMetric "Smetric" ["s_total_get", "s_total_put", "s_total_print", "s_all"]
+mkMetric
+  "Smetric"
+  [ "s_total_get",
+    "s_total_put",
+    "s_all"
+  ]
 
 server ::
   ( Has
@@ -85,22 +92,13 @@ server = forever $ do
             pv
             ( do
                 liftIO (print "server must response")
-                (liftIO $ threadDelay 1000)
+                liftIO $ threadDelay 1000
                 inc s_total_get
-                (get @Int >>= pure)
+                get @Int >>= pure
             )
         SigM2 (PrintVal i) -> do
-          inc s_total_print
           all_metrics <- getAll @Smetric Proxy
-          let res =
-                zip
-                  [ "s_total_get",
-                    "s_total_put",
-                    "s_total_print",
-                    "s_all"
-                  ]
-                  all_metrics
-          liftIO $ print (res, i)
+          liftIO $ print (all_metrics, i)
         SigM3 (PutVal val) ->
           do
             liftIO (print "put val")
@@ -132,7 +130,7 @@ client = do
   cast @"m" $ PrintVal val
   forM_ [0 .. 5] $ \i -> do
     cast @"m" (PutVal i)
-    callTimeout @"m" 10000 GetVal >>= \case
+    timeoutCall @"m" 10000 GetVal >>= \case
       Nothing -> liftIO $ print "timeout"
       Just val -> cast @"m" $ PrintVal val
 
@@ -143,6 +141,6 @@ m = do
 
   runWithServer @"m" @SigM chanM $
     runWithWorkGroup @"w" @SigW $
-      runReader chanM $ client
+      runReader chanM client
 
   threadDelay 1000000

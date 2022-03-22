@@ -5,11 +5,33 @@
 module Process.TH
   ( mkSigAndClass,
     mkMetric,
+    fromList,
   )
 where
 
-import Data.Maybe
+import Data.Maybe (fromJust, fromMaybe)
+import Data.Vector (fromList)
 import Language.Haskell.TH
+  ( Bang (Bang),
+    Body (NormalB),
+    Clause (Clause),
+    Con (GadtC, RecC),
+    Dec (DataD, FunD, InstanceD, TySynInstD, ValD),
+    Exp (AppE, ConE, ListE, LitE, VarE),
+    Lit (IntegerL, StringL),
+    Name,
+    Pat (VarP, WildP),
+    Q,
+    SourceStrictness (NoSourceStrictness),
+    SourceUnpackedness (NoSourceUnpackedness),
+    TyLit (NumTyLit),
+    TySynEqn (TySynEqn),
+    TyVarBndr (PlainTV),
+    Type (AppT, ConT, LitT, PromotedConsT, PromotedNilT),
+    lookupTypeName,
+    lookupValueName,
+    mkName,
+  )
 
 mkSigAndClass :: String -> [Name] -> Q [Dec]
 mkSigAndClass sname gs = do
@@ -82,6 +104,13 @@ mkMetric bn ls = do
       <$> lookupTypeName "Default"
   classTypeLen <- fromJust <$> lookupTypeName "Vlength"
 
+  classTypeNameVector <- fromJust <$> lookupTypeName "NameVector"
+  methodVName <- fromJust <$> lookupValueName "vName"
+
+  dataVecFromList <-
+    fromMaybe (error "not import Process.TH.fromList")
+      <$> lookupValueName "Process.TH.fromList"
+
   let contTypeV = mkName bn
   methodDef <-
     fromMaybe (error "you need impore Data.Default.Class ")
@@ -117,6 +146,27 @@ mkMetric bn ls = do
               (NormalB (LitE (IntegerL $ fromIntegral $ length ls)))
               []
           ]
+      iDec2 =
+        InstanceD
+          Nothing
+          []
+          ( AppT
+              (ConT classTypeNameVector)
+              (ConT contTypeV)
+          )
+          [ FunD
+              methodVName
+              [ Clause
+                  [WildP]
+                  ( NormalB
+                      ( AppE
+                          (VarE dataVecFromList)
+                          (ListE (map (LitE . StringL) ls))
+                      )
+                  )
+                  []
+              ]
+          ]
 
   kType <- fromJust <$> lookupTypeName "K"
   let ddd = DataD [] (mkName bn) [] Nothing [cons] []
@@ -125,8 +175,8 @@ mkMetric bn ls = do
           (mkName bn)
           [ ( mkName b,
               Bang NoSourceUnpackedness NoSourceStrictness,
-              AppT (ConT kType) (LitT (StrTyLit (show a)))
+              AppT (ConT kType) (LitT (NumTyLit a))
             )
             | (a, b) <- zip [0, 1 ..] ls
           ]
-  pure [ddd, iDec, iDec1]
+  pure [ddd, iDec, iDec1, iDec2]

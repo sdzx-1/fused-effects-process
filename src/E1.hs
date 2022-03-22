@@ -14,16 +14,19 @@ module E1 where
 import Control.Algebra
 import Control.Carrier.Error.Either
 import Control.Carrier.Reader
+import Control.Carrier.State.Strict
 import Control.Concurrent
 import Control.Concurrent.STM
 import Control.Exception (SomeException)
 import Control.Monad
 import Control.Monad.IO.Class
+import Data.Data (Proxy (Proxy))
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IntMap
 import Data.Time
 import Process.HasServer
 import Process.HasWorkGroup
+import Process.Metric
 import Process.TH
 import Process.Type
 import Process.Util
@@ -36,6 +39,14 @@ data ProcessR where
 
 mkSigAndClass "SigException" [''ProcessR]
 
+mkMetric
+  "ETmetric"
+  [ "all_exception",
+    "all_terminate",
+    "all_nothing",
+    "all_cycle"
+  ]
+
 data EotConfig = EotConfig
   { einterval :: Int,
     etMap :: TVar (IntMap (MVar Result))
@@ -43,18 +54,33 @@ data EotConfig = EotConfig
 
 eotProcess ::
   ( HasServer "et" SigException '[ProcessR] sig m,
-    Has (Reader EotConfig) sig m,
+    Has
+      ( Reader EotConfig
+          :+: State Int
+          :+: Metric ETmetric
+      )
+      sig
+      m,
     MonadIO m
   ) =>
   m ()
 eotProcess = forever $ do
+  inc all_cycle
   tvar <- asks etMap
   tmap <- liftIO $ readTVarIO tvar
   flip IntMap.traverseWithKey tmap $ \_ tv -> do
     liftIO (tryTakeMVar tv) >>= \case
-      Nothing -> pure ()
-      Just (Result tim pid res) -> cast @"et" (ProcessR pid res)
+      Nothing -> do
+        inc all_nothing
+        pure ()
+      Just (Result tim pid res) -> do
+        case res of
+          Left _ -> inc all_exception
+          Right _ -> inc all_terminate
+        cast @"et" (ProcessR pid res)
   interval <- asks einterval
+  allMetrics <- getAll @ETmetric Proxy
+  liftIO $ print allMetrics
   liftIO $ threadDelay interval
 
 -------------------------------------process timeout checker
@@ -72,12 +98,17 @@ mkSigAndClass
     ''ProcessTimeout
   ]
 
-data PtConfig = PtConfig
+newtype PtConfig = PtConfig
   { ptctimeout :: Int
   }
 
 ptcProcess ::
-  ( HasServer "ptc" SigTimeoutCheck '[StartTimoutCheck, ProcessTimeout] sig m,
+  ( HasServer
+      "ptc"
+      SigTimeoutCheck
+      '[StartTimoutCheck, ProcessTimeout]
+      sig
+      m,
     Has (Reader PtConfig) sig m,
     MonadIO m
   ) =>
@@ -203,7 +234,7 @@ mProcess = forever $ do
 
 -------------------------------------Manager - Work, Work
 
-data WorkInfo = WorkInfo
+newtype WorkInfo = WorkInfo
   { workPid :: Int
   }
 
@@ -296,14 +327,18 @@ runmProcess = do
   forkIO $
     void $
       runWithServer @"et" se $
-        runReader (EotConfig 1000000 tvar) $
-          eotProcess
+        runMetric @ETmetric $
+          runReader (EotConfig 1000000 tvar) $
+            runState @Int
+              1
+              eotProcess
 
   print "fork ptc process"
   forkIO $
     void $
       runWithServer @"ptc" stimeout $
-        runReader (PtConfig 1000000) $
+        runReader
+          (PtConfig 1000000)
           ptcProcess
 
   print "fork server process"
@@ -312,7 +347,8 @@ runmProcess = do
       runServerWithChan stimeout $
         runServerWithChan se $
           runServerWithChan sc $
-            runWithWorkGroup' @"w" tvar $
+            runWithWorkGroup' @"w"
+              tvar
               mProcess
 
   print "fork client"

@@ -119,7 +119,7 @@ call f = do
   sendReq @serverName (f $ RespVal mvar)
   liftIO $ takeMVar mvar
 
-callTimeout ::
+timeoutCall ::
   forall serverName s ts sig m e b.
   ( Elem serverName e ts,
     ToSig e s,
@@ -129,7 +129,7 @@ callTimeout ::
   Int ->
   (RespVal b -> e) ->
   m (Maybe b)
-callTimeout tot f = do
+timeoutCall tot f = do
   mvar <- liftIO newEmptyMVar
   sendReq @serverName (f $ RespVal mvar)
   liftIO $ timeout tot $ takeMVar mvar
