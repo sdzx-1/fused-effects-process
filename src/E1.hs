@@ -32,6 +32,25 @@ import Process.Type
 import Process.Util
 import Text.Read (readMaybe)
 
+-------------------------------------log server
+
+data Log where
+  Log :: String -> Log
+  Warn :: String -> Log
+  Error :: String -> Log
+
+mkSigAndClass
+  "SigLog"
+  [ ''Log
+  ]
+
+logServer :: (Has (MessageChan SigLog) sig m, MonadIO m) => m ()
+logServer = forever $ do
+  withMessageChan @SigLog $ \case
+    SigLog1 (Log st) -> liftIO $ putStrLn $ "😀: " ++ st
+    SigLog1 (Warn st) -> liftIO $ putStrLn $ "👿: " ++ st
+    SigLog1 (Error st) -> liftIO $ putStrLn $ "☠️: " ++ st
+
 -------------------------------------exception or terminate
 
 data ProcessR where
@@ -54,6 +73,7 @@ data EotConfig = EotConfig
 
 eotProcess ::
   ( HasServer "et" SigException '[ProcessR] sig m,
+    HasServer "log" SigLog '[Log] sig m,
     Has
       ( Reader EotConfig
           :+: State Int
@@ -80,7 +100,7 @@ eotProcess = forever $ do
         cast @"et" (ProcessR pid res)
   interval <- asks einterval
   allMetrics <- getAll @ETmetric Proxy
-  liftIO $ print allMetrics
+  cast @"log" $ Log (show allMetrics)
   liftIO $ threadDelay interval
 
 -------------------------------------process timeout checker
@@ -173,10 +193,12 @@ mkSigAndClass
   ]
 
 mProcess ::
-  ( Has
+  ( HasServer "log" SigLog '[Log] sig m,
+    Has
       ( MessageChan SigTimeoutCheck
           :+: MessageChan SigException
           :+: MessageChan SigCreate
+          :+: MessageChan SigLog
       )
       sig
       m,
@@ -203,27 +225,30 @@ mProcess = forever $ do
           withResp
             rsp
             ( do
-                liftIO $ print "send all check message to works"
+                cast @"log" $ Log "send all check message to works"
                 sendAllCall @"w" ProcessStartTimeoutCheck
             )
         SigTimeoutCheck2 (ProcessTimeout pid) -> do
-          liftIO $ print $ "pid: " ++ show pid ++ " health check timeout!!!"
+          cast @"log" $ Error $ "pid: " ++ show pid ++ " health check timeout!!!"
     )
     ( \case
         SigException1 (ProcessR i res) -> do
-          liftIO $ print $ "some process terminate " ++ show (i, res)
+          cast @"log" $ Warn $ "some process terminate " ++ show (i, res)
           clearTVar @SigCommand i -- clean tvar
           deleteChan @SigCommand i -- remove process channel
     )
     ( \case
         SigCreate1 Create -> do
-          liftIO $ print "fork a work process"
+          cast @"log" $ Warn "fork a work process"
+          slog <- ask
           createWorker @SigCommand $ \idx ch ->
             void $
               runWorkerWithChan ch $
                 runReader (WorkInfo idx) $
                   runError @TerminateProcess $
-                    mWork
+                    runWithServer @"log"
+                      slog
+                      mWork
         SigCreate2 (GetInfo rsp) -> withResp rsp (callAll @"w" Info)
         SigCreate3 (StopProcess i) -> do
           castById @"w" i Stop
@@ -247,7 +272,8 @@ newtype WorkInfo = WorkInfo
 data TerminateProcess = TerminateProcess
 
 mWork ::
-  ( Has
+  ( HasServer "log" SigLog '[Log] sig m,
+    Has
       ( MessageChan SigCommand
           :+: Reader WorkInfo
           :+: Error TerminateProcess
@@ -261,7 +287,7 @@ mWork = forever $ do
   withMessageChan @SigCommand $ \case
     SigCommand1 Stop -> do
       pid <- asks workPid
-      liftIO $ print $ "terminate process: " ++ show pid
+      cast @"log" $ Warn $ "terminate process: " ++ show pid
       throwError TerminateProcess
     SigCommand2 (Info rsp) ->
       withResp
@@ -275,7 +301,7 @@ mWork = forever $ do
         rsp
         ( do
             pid <- asks workPid
-            liftIO $ print $ "process " ++ show pid ++ " response timoue check"
+            cast @"log" $ Warn $ "process " ++ show pid ++ " response timoue check"
             pure TimeoutCheckFinish
         )
     SigCommand4 (ProcessWork work rsp) -> do
@@ -288,7 +314,8 @@ mWork = forever $ do
 
 ------------------------ create client
 client ::
-  ( HasServer
+  ( HasServer "log" SigLog '[Log] sig m,
+    HasServer
       "s"
       SigCreate
       '[ Create,
@@ -304,7 +331,7 @@ client ::
   ) =>
   m ()
 client = forever $ do
-  liftIO $ print "input "
+  cast @"log" $ Log "input "
   val <- liftIO getLine
   case readMaybe @Int val of
     Just 0 -> do
@@ -312,14 +339,14 @@ client = forever $ do
     Just 5 -> do
       cast @"s" $ Fwork [print 1, print 2, print 3]
     Just n -> do
-      liftIO $ print $ "input value is: " ++ show n
+      cast @"log" $ Log $ "input value is: " ++ show n
       cast @"s" $ StopProcess n
     -- cast @"s" $ KillProcess n
     Nothing -> do
       cast @"s" Create
-      liftIO $ print "cast create "
+      cast @"log" $ Log "cast create "
       res <- call @"s" GetInfo
-      liftIO $ print $ "all info: " ++ show res
+      cast @"log" $ Log $ "all info: " ++ show res
 
 ----------------- run mProcess
 
@@ -330,17 +357,24 @@ runmProcess = do
   stimeout <- newMessageChan @SigTimeoutCheck
   se <- newMessageChan @SigException
   sc <- newMessageChan @SigCreate
+  slog <- newMessageChan @SigLog
   tvar <- newTVarIO IntMap.empty
+
+  print "fork log server"
+  forkIO $
+    void $
+      runServerWithChan slog logServer
 
   print "fork et process"
   forkIO $
     void $
       runWithServer @"et" se $
-        runMetric @ETmetric $
-          runReader (EotConfig 1000000 tvar) $
-            runState @Int
-              1
-              eotProcess
+        runWithServer @"log" slog $
+          runMetric @ETmetric $
+            runReader (EotConfig 1000000 tvar) $
+              runState @Int
+                1
+                eotProcess
 
   print "fork ptc process"
   forkIO $
@@ -356,12 +390,17 @@ runmProcess = do
       runServerWithChan stimeout $
         runServerWithChan se $
           runServerWithChan sc $
-            runWithWorkGroup' @"w"
-              tvar
-              mProcess
+            runWithServer @"log" slog $
+              runReader slog $
+                runWithWorkGroup' @"w"
+                  tvar
+                  mProcess
 
   print "fork client"
-  forkIO $ void $ runWithServer @"s" sc client
+  forkIO $
+    void $
+      runWithServer @"log" slog $
+        runWithServer @"s" sc client
 
   forever $ do
     threadDelay 10000000
