@@ -70,7 +70,8 @@ mkMetric
 
 server ::
   ( Has
-      ( (MessageChan SigW :+: MessageChan SigM)
+      ( MessageChan SigW
+          :+: MessageChan SigM
           :+: State Int
           :+: Metric Smetric
       )

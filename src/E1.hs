@@ -153,6 +153,9 @@ data GetInfo where
 data StopProcess where
   StopProcess :: Int -> StopProcess
 
+data StopAll where
+  StopAll :: StopAll
+
 data KillProcess where
   KillProcess :: Int -> KillProcess
 
@@ -165,7 +168,8 @@ mkSigAndClass
     ''GetInfo,
     ''StopProcess,
     ''KillProcess,
-    ''Fwork
+    ''Fwork,
+    ''StopAll
   ]
 
 mProcess ::
@@ -230,6 +234,8 @@ mProcess = forever $ do
         SigCreate5 (Fwork ios) -> do
           res <- sendWorks @"w" ios ProcessWork
           liftIO $ print $ snd res
+        SigCreate6 StopAll -> do
+          castAll @"w" Stop
     )
 
 -------------------------------------Manager - Work, Work
@@ -289,7 +295,8 @@ client ::
          GetInfo,
          StopProcess,
          KillProcess,
-         Fwork
+         Fwork,
+         StopAll
        ]
       sig
       m,
@@ -300,6 +307,8 @@ client = forever $ do
   liftIO $ print "input "
   val <- liftIO getLine
   case readMaybe @Int val of
+    Just 0 -> do
+      cast @"s" StopAll
     Just 5 -> do
       cast @"s" $ Fwork [print 1, print 2, print 3]
     Just n -> do
