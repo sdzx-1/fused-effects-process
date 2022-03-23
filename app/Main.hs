@@ -1,6 +1,6 @@
 module Main where
 
-import E1
+import Example
 
 main :: IO ()
 main = runmProcess
