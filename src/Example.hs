@@ -23,6 +23,7 @@ import Control.Monad.IO.Class
 import Data.Data (Proxy (Proxy))
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IntMap
+import Data.Text (pack)
 import Data.Time
 import Process.HasServer
 import Process.HasWorkGroup
@@ -30,6 +31,7 @@ import Process.Metric
 import Process.TH
 import Process.Type
 import Process.Util
+import Text.Colour
 import Text.Read (readMaybe)
 
 -------------------------------------log server
@@ -47,9 +49,9 @@ mkSigAndClass
 logServer :: (Has (MessageChan SigLog) sig m, MonadIO m) => m ()
 logServer = forever $ do
   withMessageChan @SigLog $ \case
-    SigLog1 (Log st) -> liftIO $ putStrLn $ "😀: " ++ st
-    SigLog1 (Warn st) -> liftIO $ putStrLn $ "👿: " ++ st
-    SigLog1 (Error st) -> liftIO $ putStrLn $ "☠️: " ++ st
+    SigLog1 (Log st) -> liftIO $ putChunksWith With24BitColours [fore green $ chunk $ pack $ "😀: " ++ st ++ "\n"]
+    SigLog1 (Warn st) -> liftIO $ putChunksWith With24BitColours [fore yellow $ chunk $ pack $ "👿: " ++ st ++ "\n"]
+    SigLog1 (Error st) -> liftIO $ putChunksWith With24BitColours [fore red $ chunk $ pack $ "☠️: " ++ st ++ "\n"]
 
 -------------------------------------exception or terminate
 
