@@ -215,6 +215,15 @@ mkSigAndClass
     ''ToSet
   ]
 
+mkMetric
+  "Wmetric"
+  [ "all_fork_work",
+    "all_exception",
+    "all_timeout",
+    "all_start_timeout_check",
+    "all_create"
+  ]
+
 mProcess ::
   ( HasServer "log" SigLog '[Log] sig m,
     Has
@@ -223,6 +232,7 @@ mProcess ::
           :+: MessageChan SigCreate
           :+: MessageChan SigLog
           :+: State IntSet
+          :+: Metric Wmetric
       )
       sig
       m,
@@ -250,14 +260,17 @@ mProcess = forever $ do
             rsp
             ( do
                 cast @"log" $ Log "send all check message to works"
+                inc all_start_timeout_check
                 sendAllCall @"w" ProcessStartTimeoutCheck
             )
         SigTimeoutCheck2 (ProcessTimeout pid) -> do
+          inc all_timeout
           modify $ IntSet.insert pid
           cast @"log" $ Error $ "pid: " ++ show pid ++ " health check timeout!!!"
     )
     ( \case
         SigException1 (ProcessR i res) -> do
+          inc all_exception
           cast @"log" $ Warn $ "some process terminate " ++ show (i, res)
           clearTVar @SigCommand i -- clean tvar
           cast @"log" $ Error $ "some tVar clear: [" ++ show i ++ "]"
@@ -267,6 +280,7 @@ mProcess = forever $ do
         SigCreate1 Create -> do
           cast @"log" $ Warn "fork a work process"
           slog <- ask
+          inc all_create
           createWorker @SigCommand $ \idx ch ->
             void $
               runWorkerWithChan ch $
@@ -275,7 +289,10 @@ mProcess = forever $ do
                     runWithServer @"log"
                       slog
                       mWork
-        SigCreate2 (GetInfo rsp) -> withResp rsp (timeoutCallAll @"w" 1000000 Info)
+        SigCreate2 (GetInfo rsp) -> withResp rsp $ do
+          allM <- getAll @Wmetric Proxy
+          cast @"log" $ Error $ show allM
+          timeoutCallAll @"w" 1000000 Info
         SigCreate3 (StopProcess i) -> do
           castById @"w" i Stop
           deleteChan @SigCommand i
@@ -284,6 +301,7 @@ mProcess = forever $ do
           deleteChan @SigCommand i
         SigCreate5 (Fwork ios) -> do
           res <- sendWorks @"w" ios ProcessWork
+          inc all_fork_work
           cast @"log" $ Warn $ show $ snd res
         SigCreate6 StopAll -> do
           castAll @"w" Stop
@@ -427,10 +445,11 @@ runmProcess = do
           runServerWithChan sc $
             runWithServer @"log" slog $
               runReader slog $
-                runState @IntSet IntSet.empty $
-                  runWithWorkGroup' @"w"
-                    tvar
-                    mProcess
+                runMetric @Wmetric $
+                  runState @IntSet IntSet.empty $
+                    runWithWorkGroup' @"w"
+                      tvar
+                      mProcess
 
   print "fork client"
   forkIO $
