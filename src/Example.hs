@@ -24,6 +24,8 @@ import Data.Data (Proxy (Proxy))
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IntMap
 import Data.Text (pack)
+import Data.IntSet (IntSet)
+import qualified Data.IntSet as IntSet
 import Data.Time
 import Process.HasServer
 import Process.HasWorkGroup
@@ -199,6 +201,9 @@ data KillProcess where
 data Fwork where
   Fwork :: [IO ()] -> Fwork
 
+data ToSet where
+  ToSet :: RespVal IntSet -> ToSet
+
 mkSigAndClass
   "SigCreate"
   [ ''Create,
@@ -206,7 +211,8 @@ mkSigAndClass
     ''StopProcess,
     ''KillProcess,
     ''Fwork,
-    ''StopAll
+    ''StopAll,
+    ''ToSet
   ]
 
 mProcess ::
@@ -216,6 +222,7 @@ mProcess ::
           :+: MessageChan SigException
           :+: MessageChan SigCreate
           :+: MessageChan SigLog
+          :+: State IntSet
       )
       sig
       m,
@@ -246,6 +253,7 @@ mProcess = forever $ do
                 sendAllCall @"w" ProcessStartTimeoutCheck
             )
         SigTimeoutCheck2 (ProcessTimeout pid) -> do
+          modify $ IntSet.insert pid
           cast @"log" $ Error $ "pid: " ++ show pid ++ " health check timeout!!!"
     )
     ( \case
@@ -279,6 +287,8 @@ mProcess = forever $ do
           liftIO $ print $ snd res
         SigCreate6 StopAll -> do
           castAll @"w" Stop
+        SigCreate7 (ToSet rsp) ->
+          withResp rsp get
     )
 
 -------------------------------------Manager - Work, Work
@@ -341,7 +351,8 @@ client ::
          StopProcess,
          KillProcess,
          Fwork,
-         StopAll
+         StopAll,
+         ToSet
        ]
       sig
       m,
@@ -365,6 +376,8 @@ client = forever $ do
       cast @"log" $ Log "cast create "
       res <- call @"s" GetInfo
       cast @"log" $ Log $ "all info: " ++ show res
+      toSets <- call @"s" ToSet
+      cast @"log" $ Log $ "all timeout set: " ++ show toSets
 
 ----------------- run mProcess
 
@@ -412,9 +425,10 @@ runmProcess = do
           runServerWithChan sc $
             runWithServer @"log" slog $
               runReader slog $
-                runWithWorkGroup' @"w"
-                  tvar
-                  mProcess
+                runState @IntSet IntSet.empty $
+                  runWithWorkGroup' @"w"
+                    tvar
+                    mProcess
 
   print "fork client"
   forkIO $
