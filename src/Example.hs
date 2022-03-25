@@ -23,9 +23,9 @@ import Control.Monad.IO.Class
 import Data.Data (Proxy (Proxy))
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IntMap
-import Data.Text (pack)
 import Data.IntSet (IntSet)
 import qualified Data.IntSet as IntSet
+import Data.Text (pack)
 import Data.Time
 import Process.HasServer
 import Process.HasWorkGroup
@@ -187,7 +187,7 @@ data Create where
   Create :: Create
 
 data GetInfo where
-  GetInfo :: RespVal [(Int, String)] %1 -> GetInfo
+  GetInfo :: RespVal (Maybe [(Int, String)]) %1 -> GetInfo
 
 data StopProcess where
   StopProcess :: Int -> StopProcess
@@ -275,7 +275,7 @@ mProcess = forever $ do
                     runWithServer @"log"
                       slog
                       mWork
-        SigCreate2 (GetInfo rsp) -> withResp rsp (callAll @"w" Info)
+        SigCreate2 (GetInfo rsp) -> withResp rsp (timeoutCallAll @"w" 1000000 Info)
         SigCreate3 (StopProcess i) -> do
           castById @"w" i Stop
           deleteChan @SigCommand i
@@ -284,7 +284,7 @@ mProcess = forever $ do
           deleteChan @SigCommand i
         SigCreate5 (Fwork ios) -> do
           res <- sendWorks @"w" ios ProcessWork
-          liftIO $ print $ snd res
+          cast @"log" $ Warn $ show $ snd res
         SigCreate6 StopAll -> do
           castAll @"w" Stop
         SigCreate7 (ToSet rsp) ->
@@ -375,7 +375,9 @@ client = forever $ do
       cast @"s" Create
       cast @"log" $ Log "cast create "
       res <- call @"s" GetInfo
-      cast @"log" $ Log $ "all info: " ++ show res
+      case res of
+        Nothing -> cast @"log" $ Error "timeout: call process to all work check timeout"
+        Just x0 -> cast @"log" $ Log $ "all info: " ++ show x0
       toSets <- call @"s" ToSet
       cast @"log" $ Log $ "all timeout set: " ++ show toSets
 

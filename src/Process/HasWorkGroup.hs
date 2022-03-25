@@ -102,6 +102,7 @@ import Process.Type
     inject,
   )
 import Unsafe.Coerce (unsafeCoerce)
+import System.Timeout (timeout)
 
 type HasWorkGroup (serverName :: Symbol) s ts sig m =
   ( Elems serverName ts (ToList s),
@@ -223,6 +224,19 @@ callAll ::
 callAll t = do
   vs <- sendLabelled @serverName (SendAllCall t)
   mapM (liftIO . takeMVar . snd) vs
+
+timeoutCallAll ::
+  forall (serverName :: Symbol) s ts sig m t b.
+  ( Elem serverName t ts,
+    ToSig t s,
+    HasLabelled serverName (Request s ts) sig m,
+    MonadIO m
+  ) => Int ->
+  (RespVal b -> t) ->
+  m (Maybe [b])
+timeoutCallAll tot t = do
+  vs <- sendLabelled @serverName (SendAllCall t)
+  liftIO $ timeout tot $ mapM (takeMVar . snd) vs
 
 mcall ::
   forall serverName s ts sig m e b.
