@@ -35,6 +35,7 @@ import Process.Type
 import Process.Util
 import Text.Colour
 import Text.Read (readMaybe)
+import qualified Data.List as L
 
 -------------------------------------log server
 
@@ -390,17 +391,17 @@ client = forever $ do
     Just 0 -> do
       cast @"s" StopAll
       res <- call @"s" GetProcessInfo
-      cast @"log" $ Error $ show res
+      cast @"log" $ Error $ L.intercalate "\n" (map show res)
     Just 5 -> do
       cast @"s" $ Fwork [print 1, print 2, print 3]
       res <- call @"s" GetProcessInfo
-      cast @"log" $ Error $ show res
+      cast @"log" $ Error $ L.intercalate "\n" (map show res)
     Just n -> do
       cast @"log" $ Log $ "input value is: " ++ show n
       -- cast @"s" $ StopProcess n
       cast @"s" $ KillProcess n
       res <- call @"s" GetProcessInfo
-      cast @"log" $ Error $ show res
+      cast @"log" $ Error $ L.intercalate "\n" (map show res)
     Nothing -> do
       cast @"s" Create
       cast @"log" $ Log "cast create "
@@ -411,7 +412,7 @@ client = forever $ do
       toSets <- call @"s" ToSet
       cast @"log" $ Log $ "all timeout set: " ++ show toSets
       res <- call @"s" GetProcessInfo
-      cast @"log" $ Error $ show res
+      cast @"log" $ Error $ L.intercalate "\n" (map show res)
 
 ----------------- run mProcess
 
