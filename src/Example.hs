@@ -25,6 +25,7 @@ import Data.IntMap (IntMap)
 import qualified Data.IntMap as IntMap
 import Data.IntSet (IntSet)
 import qualified Data.IntSet as IntSet
+import qualified Data.List as L
 import Data.Text (pack)
 import Data.Time
 import Process.HasServer
@@ -35,28 +36,60 @@ import Process.Type
 import Process.Util
 import Text.Colour
 import Text.Read (readMaybe)
-import qualified Data.List as L
 
 -------------------------------------log server
 
+data Level = Debug | Warn | Error deriving (Eq, Ord, Show)
+
 data Log where
-  Log :: String -> Log
-  Warn :: String -> Log
-  Error :: String -> Log
+  Log :: Level -> String -> Log
+
+type CheckLevelFun = Level -> Bool
+
+noCheck :: CheckLevelFun
+noCheck _ = True
+
+data SetLog where
+  SetLog :: CheckLevelFun -> SetLog
 
 mkSigAndClass
   "SigLog"
-  [ ''Log
+  [ ''Log,
+    ''SetLog
   ]
 
-logServer :: (Has (MessageChan SigLog) sig m, MonadIO m) => m ()
+mkMetric
+  "Lines"
+  [ "all_lines"
+  ]
+
+logFun :: String -> Level -> String -> [Chunk]
+logFun vli lv st = case lv of
+  Debug -> [fore green $ chunk $ pack $ vli ++ "😀: " ++ st ++ "\n"]
+  Warn -> [fore yellow $ chunk $ pack $ vli ++ "👿: " ++ st ++ "\n"]
+  Error -> [fore red $ chunk $ pack $ vli ++ "☠️: " ++ st ++ "\n"]
+
+logServer ::
+  ( Has
+      ( MessageChan SigLog
+          :+: Metric Lines
+          :+: State CheckLevelFun
+      )
+      sig
+      m,
+    MonadIO m
+  ) =>
+  m ()
 logServer = forever $ do
   withMessageChan @SigLog $ \case
-    SigLog1 (Log st) -> liftIO $ putChunksWith With24BitColours [fore green $ chunk $ pack $ "😀: " ++ st ++ "\n"]
-    SigLog1 (Warn st) -> liftIO $ putChunksWith With24BitColours [fore yellow $ chunk $ pack $ "👿: " ++ st ++ "\n"]
-    SigLog1 (Error st) -> liftIO $ putChunksWith With24BitColours [fore red $ chunk $ pack $ "☠️: " ++ st ++ "\n"]
-
--------------------------------------exception or terminate
+    SigLog1 (Log lv st) -> do
+      lvCheck <- get
+      when (lvCheck lv) $ do
+        inc all_lines
+        li <- getVal all_lines
+        let vli = show li
+        liftIO $ putChunksWith With24BitColours (logFun vli lv st)
+    SigLog2 (SetLog lv) -> put lv
 
 data ProcessR where
   ProcessR :: Int -> (Either SomeException ()) -> ProcessR
@@ -105,7 +138,7 @@ eotProcess = forever $ do
         cast @"et" (ProcessR pid res)
   interval <- asks einterval
   allMetrics <- getAll @ETmetric Proxy
-  cast @"log" $ Log (show allMetrics)
+  cast @"log" $ Log Debug (show allMetrics)
   liftIO $ threadDelay interval
 
 -------------------------------------process timeout checker
@@ -148,7 +181,7 @@ ptcProcess ::
   m ()
 ptcProcess = forever $ do
   allMetrics <- getAll @PTmetric Proxy
-  cast @"log" $ Warn $ show allMetrics
+  cast @"log" $ Log Warn $ show allMetrics
   inc all_pt_cycle
   res <- call @"ptc" StartTimoutCheck
   tim <- asks ptctimeout
@@ -261,29 +294,26 @@ mProcess = forever $ do
     @SigCreate
     ( \case
         SigTimeoutCheck1 (StartTimoutCheck rsp) ->
-          withResp
-            rsp
-            ( do
-                cast @"log" $ Log "send all check message to works"
-                inc all_start_timeout_check
-                sendAllCall @"w" ProcessStartTimeoutCheck
-            )
+          withResp rsp $ do
+            cast @"log" $ Log Debug "send all check message to works"
+            inc all_start_timeout_check
+            sendAllCall @"w" ProcessStartTimeoutCheck
         SigTimeoutCheck2 (ProcessTimeout pid) -> do
           inc all_timeout
           modify $ IntSet.insert pid
-          cast @"log" $ Error $ "pid: " ++ show pid ++ " health check timeout!!!"
+          cast @"log" $ Log Error $ "pid: " ++ show pid ++ " health check timeout!!!"
     )
     ( \case
         SigException1 (ProcessR i res) -> do
           inc all_exception
-          cast @"log" $ Warn $ "some process terminate " ++ show (i, res)
+          cast @"log" $ Log Warn $ "some process terminate " ++ show (i, res)
           clearTVar @SigCommand i -- clean tvar
-          cast @"log" $ Error $ "some tVar clear: [" ++ show i ++ "]"
+          cast @"log" $ Log Error $ "some tVar clear: [" ++ show i ++ "]"
           deleteChan @SigCommand i -- remove process channel
     )
     ( \case
         SigCreate1 Create -> do
-          cast @"log" $ Warn "fork a work process"
+          cast @"log" $ Log Warn "fork a work process"
           slog <- ask
           inc all_create
           createWorker @SigCommand $ \idx ch ->
@@ -296,7 +326,7 @@ mProcess = forever $ do
                       mWork
         SigCreate2 (GetInfo rsp) -> withResp rsp $ do
           allM <- getAll @Wmetric Proxy
-          cast @"log" $ Error $ show allM
+          cast @"log" $ Log Error $ show allM
           timeoutCallAll @"w" 1000000 Info
         SigCreate3 (StopProcess i) -> do
           castById @"w" i Stop
@@ -307,7 +337,7 @@ mProcess = forever $ do
         SigCreate5 (Fwork ios) -> do
           res <- sendWorks @"w" ios ProcessWork
           inc all_fork_work
-          cast @"log" $ Warn $ show $ snd res
+          cast @"log" $ Log Warn $ show $ snd res
         SigCreate6 StopAll -> do
           castAll @"w" Stop
         SigCreate7 (ToSet rsp) ->
@@ -339,34 +369,25 @@ mWork = forever $ do
   withMessageChan @SigCommand $ \case
     SigCommand1 Stop -> do
       pid <- asks workPid
-      cast @"log" $ Warn $ "terminate process: " ++ show pid
+      cast @"log" $ Log Warn $ "terminate process: " ++ show pid
       throwError TerminateProcess
     SigCommand2 (Info rsp) ->
-      withResp
-        rsp
-        ( do
-            pid <- asks workPid
-            pure (pid, "work is running")
-        )
+      withResp rsp $ do
+        pid <- asks workPid
+        pure (pid, "work is running")
     SigCommand3 (ProcessStartTimeoutCheck rsp) ->
-      withResp
-        rsp
-        ( do
-            pid <- asks workPid
-            cast @"log" $ Warn $ "process " ++ show pid ++ " response timoue check"
-            pure TimeoutCheckFinish
-        )
+      withResp rsp $ do
+        pid <- asks workPid
+        cast @"log" $ Log Warn $ "process " ++ show pid ++ " response timoue check"
+        pure TimeoutCheckFinish
     SigCommand4 (ProcessWork work rsp) -> do
-      withResp
-        rsp
-        ( do
-            liftIO work
-            pure ()
-        )
+      withResp rsp $ do
+        liftIO work
+        pure ()
 
 ------------------------ create client
 client ::
-  ( HasServer "log" SigLog '[Log] sig m,
+  ( HasServer "log" SigLog '[Log, SetLog] sig m,
     HasServer
       "s"
       SigCreate
@@ -385,34 +406,42 @@ client ::
   ) =>
   m ()
 client = forever $ do
-  cast @"log" $ Log "input "
+  cast @"log" $ Log Debug "input "
   val <- liftIO getLine
+  case val of
+    "d" -> cast @"log" $ SetLog (>= Debug)
+    "w" -> cast @"log" $ SetLog (>= Warn)
+    "e" -> cast @"log" $ SetLog (>= Error)
+    "ld" -> cast @"log" $ SetLog (== Debug)
+    "lw" -> cast @"log" $ SetLog (== Warn)
+    "le" -> cast @"log" $ SetLog (== Error)
+    _ -> pure ()
   case readMaybe @Int val of
     Just 0 -> do
       cast @"s" StopAll
       res <- call @"s" GetProcessInfo
-      cast @"log" $ Error $ L.intercalate "\n" (map show res)
+      cast @"log" $ Log Error $ L.intercalate "\n" (map show res)
     Just 5 -> do
       cast @"s" $ Fwork [print 1, print 2, print 3]
       res <- call @"s" GetProcessInfo
-      cast @"log" $ Error $ L.intercalate "\n" (map show res)
+      cast @"log" $ Log Error $ L.intercalate "\n" (map show res)
     Just n -> do
-      cast @"log" $ Log $ "input value is: " ++ show n
+      cast @"log" $ Log Debug $ "input value is: " ++ show n
       -- cast @"s" $ StopProcess n
       cast @"s" $ KillProcess n
       res <- call @"s" GetProcessInfo
-      cast @"log" $ Error $ L.intercalate "\n" (map show res)
+      cast @"log" $ Log Error $ L.intercalate "\n" (map show res)
     Nothing -> do
       cast @"s" Create
-      cast @"log" $ Log "cast create "
+      cast @"log" $ Log Debug "cast create "
       res <- call @"s" GetInfo
       case res of
-        Nothing -> cast @"log" $ Error "timeout: call process to all work check timeout"
-        Just x0 -> cast @"log" $ Log $ "all info: " ++ show x0
+        Nothing -> cast @"log" $ Log Error "timeout: call process to all work check timeout"
+        Just x0 -> cast @"log" $ Log Debug $ "all info: " ++ show x0
       toSets <- call @"s" ToSet
-      cast @"log" $ Log $ "all timeout set: " ++ show toSets
+      cast @"log" $ Log Debug $ "all timeout set: " ++ show toSets
       res <- call @"s" GetProcessInfo
-      cast @"log" $ Error $ L.intercalate "\n" (map show res)
+      cast @"log" $ Log Error $ L.intercalate "\n" (map show res)
 
 ----------------- run mProcess
 
@@ -429,7 +458,9 @@ runmProcess = do
   print "fork log server"
   forkIO $
     void $
-      runServerWithChan slog logServer
+      runMetric @Lines $
+        runState noCheck $
+          runServerWithChan slog logServer
 
   print "fork et process"
   forkIO $
