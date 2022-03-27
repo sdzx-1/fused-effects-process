@@ -138,7 +138,7 @@ eotProcess = forever $ do
         cast @"et" (ProcessR pid res)
   interval <- asks einterval
   allMetrics <- getAll @ETmetric Proxy
-  cast @"log" $ Log Debug (show allMetrics)
+  cast @"log" $ Log Warn (show allMetrics)
   liftIO $ threadDelay interval
 
 -------------------------------------process timeout checker
@@ -295,7 +295,7 @@ mProcess = forever $ do
     ( \case
         SigTimeoutCheck1 (StartTimoutCheck rsp) ->
           withResp rsp $ do
-            cast @"log" $ Log Debug "send all check message to works"
+            -- cast @"log" $ Log Debug "send all check message to works"
             inc all_start_timeout_check
             sendAllCall @"w" ProcessStartTimeoutCheck
         SigTimeoutCheck2 (ProcessTimeout pid) -> do
@@ -374,11 +374,11 @@ mWork = forever $ do
     SigCommand2 (Info rsp) ->
       withResp rsp $ do
         pid <- asks workPid
-        pure (pid, "work is running")
+        pure (pid, "running")
     SigCommand3 (ProcessStartTimeoutCheck rsp) ->
       withResp rsp $ do
-        pid <- asks workPid
-        cast @"log" $ Log Warn $ "process " ++ show pid ++ " response timoue check"
+        -- pid <- asks workPid
+        -- cast @"log" $ Log Warn $ "process " ++ show pid ++ " response timoue check"
         pure TimeoutCheckFinish
     SigCommand4 (ProcessWork work rsp) -> do
       withResp rsp $ do
@@ -432,7 +432,7 @@ client = forever $ do
       res <- call @"s" GetProcessInfo
       cast @"log" $ Log Error $ L.intercalate "\n" (map show res)
     Nothing -> do
-      cast @"s" Create
+      replicateM_ 200000 $ cast @"s" Create
       cast @"log" $ Log Debug "cast create "
       res <- call @"s" GetInfo
       case res of
