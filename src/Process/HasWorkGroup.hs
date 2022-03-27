@@ -52,16 +52,11 @@ import Control.Concurrent
     takeMVar,
   )
 import Control.Concurrent.STM
-  ( TChan,
-    TVar,
+  ( TVar,
     atomically,
-    isEmptyTChan,
     modifyTVar',
-    newTChanIO,
     newTVarIO,
-    readTChan,
     readTVar,
-    writeTChan,
     writeTVar,
   )
 import Control.Effect.Labelled
@@ -89,9 +84,17 @@ import Data.Kind (Type)
 import Data.Time (getCurrentTime)
 import Data.Traversable (for)
 import GHC.TypeLits (Symbol)
+import Process.TChan
+  ( TChan,
+    getChanSize,
+    newTChanIO,
+    readTChan,
+    writeTChan,
+  )
 import Process.Type
   ( Elem,
     Elems,
+    ProcessInfo,
     ProcessState (..),
     RespVal (..),
     Result (..),
@@ -100,9 +103,10 @@ import Process.Type
     ToList,
     ToSig,
     inject,
+    state2info,
   )
-import Unsafe.Coerce (unsafeCoerce)
 import System.Timeout (timeout)
+import Unsafe.Coerce (unsafeCoerce)
 
 type HasWorkGroup (serverName :: Symbol) s ts sig m =
   ( Elems serverName ts (ToList s),
@@ -128,6 +132,7 @@ data Manager s m a where
   ClearTVar :: Int -> Manager s m ()
   KillWorker :: Int -> Manager s m ()
   GetAllWorker :: Manager s m [Int]
+  GetAllInfo :: Manager s m [ProcessInfo]
 
 sendReq ::
   forall (serverName :: Symbol) s ts sig m t.
@@ -231,7 +236,8 @@ timeoutCallAll ::
     ToSig t s,
     HasLabelled serverName (Request s ts) sig m,
     MonadIO m
-  ) => Int ->
+  ) =>
+  Int ->
   (RespVal b -> t) ->
   m (Maybe [b])
 timeoutCallAll tot t = do
@@ -312,6 +318,10 @@ killWorker i = send (KillWorker @s i)
 getAllWorker ::
   forall s sig m a. (MonadIO m, Has (Manager s) sig m) => m [Int]
 getAllWorker = send (GetAllWorker @s)
+
+getAllInfo ::
+  forall s sig m a. (MonadIO m, Has (Manager s) sig m) => m [ProcessInfo]
+getAllInfo = send (GetAllInfo @s)
 
 data WorkGroupState s ts = WorkGroupState
   { workMap :: IntMap (ProcessState s ts),
@@ -401,6 +411,10 @@ instance (Algebra sig m, MonadIO m) => Algebra (Request s ts :+: Manager s :+: s
     R (L GetAllWorker) -> do
       wm <- gets @(WorkGroupState s ts) workMap
       pure (IntMap.keys wm <$ ctx)
+    R (L GetAllInfo) -> do
+      wm <- gets @(WorkGroupState s ts) workMap
+      ls <- liftIO $ IntMap.traverseWithKey (\_ ch -> state2info ch) wm
+      pure (IntMap.elems ls <$ ctx)
     R (R signa) -> alg (unRequestC . hdl) (R signa) ctx
 
 initWorkGroupState :: TVar (IntMap (MVar Result)) -> WorkGroupState s ts
@@ -417,7 +431,7 @@ runWithWorkGroup ::
   Labelled (serverName :: Symbol) (RequestC s ts) m a ->
   m a
 runWithWorkGroup f = do
-  tvar <- liftIO $ newTVarIO (IntMap.empty)
+  tvar <- liftIO $ newTVarIO IntMap.empty
   evalState @(WorkGroupState s ts) (initWorkGroupState tvar) $
     unRequestC $
       runLabelled f

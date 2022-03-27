@@ -204,6 +204,9 @@ data Fwork where
 data ToSet where
   ToSet :: RespVal IntSet -> ToSet
 
+data GetProcessInfo where
+  GetProcessInfo :: RespVal [ProcessInfo] %1 -> GetProcessInfo
+
 mkSigAndClass
   "SigCreate"
   [ ''Create,
@@ -212,7 +215,8 @@ mkSigAndClass
     ''KillProcess,
     ''Fwork,
     ''StopAll,
-    ''ToSet
+    ''ToSet,
+    ''GetProcessInfo
   ]
 
 mkMetric
@@ -307,10 +311,11 @@ mProcess = forever $ do
           castAll @"w" Stop
         SigCreate7 (ToSet rsp) ->
           withResp rsp get
+        SigCreate8 (GetProcessInfo rsp) ->
+          withResp rsp (getAllInfo @SigCommand)
     )
 
 -------------------------------------Manager - Work, Work
-
 newtype WorkInfo = WorkInfo
   { workPid :: Int
   }
@@ -370,7 +375,8 @@ client ::
          KillProcess,
          Fwork,
          StopAll,
-         ToSet
+         ToSet,
+         GetProcessInfo
        ]
       sig
       m,
@@ -383,12 +389,18 @@ client = forever $ do
   case readMaybe @Int val of
     Just 0 -> do
       cast @"s" StopAll
+      res <- call @"s" GetProcessInfo
+      cast @"log" $ Error $ show res
     Just 5 -> do
       cast @"s" $ Fwork [print 1, print 2, print 3]
+      res <- call @"s" GetProcessInfo
+      cast @"log" $ Error $ show res
     Just n -> do
       cast @"log" $ Log $ "input value is: " ++ show n
       -- cast @"s" $ StopProcess n
       cast @"s" $ KillProcess n
+      res <- call @"s" GetProcessInfo
+      cast @"log" $ Error $ show res
     Nothing -> do
       cast @"s" Create
       cast @"log" $ Log "cast create "
@@ -398,6 +410,8 @@ client = forever $ do
         Just x0 -> cast @"log" $ Log $ "all info: " ++ show x0
       toSets <- call @"s" ToSet
       cast @"log" $ Log $ "all timeout set: " ++ show toSets
+      res <- call @"s" GetProcessInfo
+      cast @"log" $ Error $ show res
 
 ----------------- run mProcess
 

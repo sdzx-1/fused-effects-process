@@ -27,17 +27,14 @@ import Control.Concurrent
   )
 import Control.Concurrent.STM
   ( STM,
-    TChan,
     atomically,
-    isEmptyTChan,
-    newTChanIO,
     orElse,
-    readTChan,
   )
 import Control.Monad (forever)
 import Control.Monad.IO.Class (MonadIO (..))
 import Process.HasWorkGroup (HasWorkGroup)
-import Process.Type (RespVal (..), Some (..))
+import Process.TChan (TChan, newTChanIO, readTChan)
+import Process.Type (ProcessInfo (..), ProcessState (..), RespVal (..), Some (..))
 
 type MessageChan f = Reader (TChan (Some f))
 

@@ -26,6 +26,7 @@ library
                     , Process.TH
                     , Process.Type
                     , Process.Util
+                    , Process.TChan
                     , Example
 
     -- Modules included in this library but not exported.

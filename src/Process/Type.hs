@@ -10,7 +10,6 @@
 module Process.Type where
 
 import Control.Concurrent (MVar, ThreadId)
-import Control.Concurrent.STM
 import Control.Exception (SomeException)
 import Data.Kind
   ( Constraint,
@@ -26,6 +25,7 @@ import GHC.TypeLits
     Symbol,
     TypeError,
   )
+import Process.TChan
 
 type Sum :: (Type -> Type) -> [Type] -> Type
 data Sum f r where
@@ -80,6 +80,28 @@ data ProcessState s ts = ProcessState
     pid :: Int,
     tid :: ThreadId
   }
+
+data ProcessInfo = ProcessInfo
+  { ppid :: Int,
+    ptid :: ThreadId,
+    psize :: Int
+  }
+
+state2info :: ProcessState s ts -> IO ProcessInfo
+state2info (ProcessState pc pid tid) = do
+  ps <- getChanSize pc
+  pure (ProcessInfo pid tid ps)
+
+
+instance Show ProcessInfo where
+  show (ProcessInfo pid tid psize) =
+    "Prcess info: "
+      ++ "Pid "
+      ++ show pid
+      ++ ", Tid "
+      ++ show tid
+      ++ ", TChan size "
+      ++ show psize
 
 data Result = Result
   { terminateTime :: UTCTime,

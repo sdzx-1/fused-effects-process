@@ -29,21 +29,12 @@ import Control.Carrier.Reader
     runReader,
   )
 import Control.Concurrent
-  ( --  Chan
-    MVar,
-    -- , newChan
+  ( MVar,
     newEmptyMVar,
-    -- , readChan
     takeMVar,
-    -- , writeChan
   )
 import Control.Concurrent.MVar (putMVar)
-import Control.Concurrent.STM
-  ( TChan,
-    atomically,
-    readTChan,
-    writeTChan,
-  )
+import Control.Concurrent.STM (atomically)
 import Control.Effect.Labelled
   ( Algebra (..),
     Has,
@@ -68,6 +59,7 @@ import GHC.TypeLits
     Symbol,
     TypeError,
   )
+import Process.TChan
 import Process.Type
   ( Elem,
     Elems,
