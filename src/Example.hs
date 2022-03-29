@@ -8,6 +8,8 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE NumericUnderscores #-}
 
 module Example where
 
@@ -36,7 +38,9 @@ import Process.Type
 import Process.Util
 -- import Text.Colour
 import Text.Read (readMaybe)
-
+import qualified Data.Text as T
+import qualified Data.Text.Lazy.Builder as TL
+import qualified Data.Text.Lazy.IO as TIO
 -------------------------------------log server
 
 data Level = Debug | Warn | Error deriving (Eq, Ord, Show)
@@ -61,6 +65,7 @@ mkSigAndClass
 mkMetric
   "Lines"
   [ "all_lines"
+  , "tmp_chars"
   ]
 
 logFun :: String -> Level -> String -> String
@@ -78,6 +83,7 @@ logServer ::
       ( MessageChan SigLog
           :+: Metric Lines
           :+: State CheckLevelFun
+          :+: State TL.Builder
       )
       sig
       m,
@@ -92,6 +98,17 @@ logServer = forever $ do
         inc all_lines
         li <- getVal all_lines
         let vli = show li
+        chars <- getVal tmp_chars
+        if chars > 1_000_000
+          then do
+            putVal tmp_chars 0
+            bu <- get
+            liftIO $ TIO.appendFile "all.log" (TL.toLazyText bu)
+          else do
+            let ln = length st
+                ltxt = TL.fromString st
+            putVal tmp_chars (chars + ln)
+            modify @TL.Builder ( <> ltxt)
         liftIO $ putStr (logFun vli lv st)
     -- liftIO $ putChunksWith With24BitColours (logFun vli lv st)
     SigLog2 (SetLog lv) -> put lv
@@ -481,6 +498,7 @@ runmProcess = do
     void $
       runMetric @Lines $
         runState noCheck $
+         runState @TL.Builder "" $
           runServerWithChan slog logServer
 
   print "fork et process"
