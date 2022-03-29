@@ -34,7 +34,7 @@ import Process.Metric
 import Process.TH
 import Process.Type
 import Process.Util
-import Text.Colour
+-- import Text.Colour
 import Text.Read (readMaybe)
 
 -------------------------------------log server
@@ -63,11 +63,15 @@ mkMetric
   [ "all_lines"
   ]
 
-logFun :: String -> Level -> String -> [Chunk]
-logFun vli lv st = case lv of
-  Debug -> [fore green $ chunk $ pack $ vli ++ "😀: " ++ st ++ "\n"]
-  Warn -> [fore yellow $ chunk $ pack $ vli ++ "👿: " ++ st ++ "\n"]
-  Error -> [fore red $ chunk $ pack $ vli ++ "☠️: " ++ st ++ "\n"]
+logFun :: String -> Level -> String -> String
+logFun vli lv st = concat $ case lv of
+  Debug -> [vli ++ "😀: " ++ st ++ "\n"]
+  Warn -> [vli ++ "👿: " ++ st ++ "\n"]
+  Error -> [vli ++ "☠️: " ++ st ++ "\n"]
+
+--  Debug -> [fore green $ chunk $ pack $ vli ++ "😀: " ++ st ++ "\n"]
+--  Warn -> [fore yellow $ chunk $ pack $ vli ++ "👿: " ++ st ++ "\n"]
+--  Error -> [fore red $ chunk $ pack $ vli ++ "☠️: " ++ st ++ "\n"]
 
 logServer ::
   ( Has
@@ -88,7 +92,8 @@ logServer = forever $ do
         inc all_lines
         li <- getVal all_lines
         let vli = show li
-        liftIO $ putChunksWith With24BitColours (logFun vli lv st)
+        liftIO $ putStr (logFun vli lv st)
+    -- liftIO $ putChunksWith With24BitColours (logFun vli lv st)
     SigLog2 (SetLog lv) -> put lv
 
 data ProcessR where
@@ -294,10 +299,13 @@ mProcess = forever $ do
     @SigCreate
     ( \case
         SigTimeoutCheck1 (StartTimoutCheck rsp) ->
-          withResp rsp $ do
-            -- cast @"log" $ Log Debug "send all check message to works"
-            inc all_start_timeout_check
-            sendAllCall @"w" ProcessStartTimeoutCheck
+          withResp
+            rsp
+            ( do
+                -- cast @"log" $ Log Debug "send all check message to works"
+                inc all_start_timeout_check
+                sendAllCall @"w" ProcessStartTimeoutCheck
+            )
         SigTimeoutCheck2 (ProcessTimeout pid) -> do
           inc all_timeout
           modify $ IntSet.insert pid
@@ -324,10 +332,14 @@ mProcess = forever $ do
                     runWithServer @"log"
                       slog
                       mWork
-        SigCreate2 (GetInfo rsp) -> withResp rsp $ do
-          allM <- getAll @Wmetric Proxy
-          cast @"log" $ Log Error $ show allM
-          timeoutCallAll @"w" 1000000 Info
+        SigCreate2 (GetInfo rsp) ->
+          withResp
+            rsp
+            ( do
+                allM <- getAll @Wmetric Proxy
+                cast @"log" $ Log Error $ show allM
+                timeoutCallAll @"w" 1000000 Info
+            )
         SigCreate3 (StopProcess i) -> do
           castById @"w" i Stop
           deleteChan @SigCommand i
@@ -372,18 +384,27 @@ mWork = forever $ do
       cast @"log" $ Log Warn $ "terminate process: " ++ show pid
       throwError TerminateProcess
     SigCommand2 (Info rsp) ->
-      withResp rsp $ do
-        pid <- asks workPid
-        pure (pid, "running")
+      withResp
+        rsp
+        ( do
+            pid <- asks workPid
+            pure (pid, "running")
+        )
     SigCommand3 (ProcessStartTimeoutCheck rsp) ->
-      withResp rsp $ do
-        -- pid <- asks workPid
-        -- cast @"log" $ Log Warn $ "process " ++ show pid ++ " response timoue check"
-        pure TimeoutCheckFinish
+      withResp
+        rsp
+        ( do
+            -- pid <- asks workPid
+            -- cast @"log" $ Log Warn $ "process " ++ show pid ++ " response timoue check"
+            pure TimeoutCheckFinish
+        )
     SigCommand4 (ProcessWork work rsp) -> do
-      withResp rsp $ do
-        liftIO work
-        pure ()
+      withResp
+        rsp
+        ( do
+            liftIO work
+            pure ()
+        )
 
 ------------------------ create client
 client ::
@@ -432,7 +453,7 @@ client = forever $ do
       res <- call @"s" GetProcessInfo
       cast @"log" $ Log Error $ L.intercalate "\n" (map show res)
     Nothing -> do
-      replicateM_ 200000 $ cast @"s" Create
+      replicateM_ 20000 $ cast @"s" Create
       cast @"log" $ Log Debug "cast create "
       res <- call @"s" GetInfo
       case res of

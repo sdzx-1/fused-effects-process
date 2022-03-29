@@ -45,7 +45,7 @@ library
                     , template-haskell
                     , time
                     , aeson
-                    , safe-coloured-text
+                 ---, safe-coloured-text
                     , text
                     , binary
     hs-source-dirs:   src

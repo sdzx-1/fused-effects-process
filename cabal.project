@@ -4,3 +4,8 @@ source-repository-package
   type: git
   location: git@github.com:EMQ-YangM/fused-effects.git
   tag: 614419fc14a571f38f9cd7e2acc5d6d5c27a0765
+
+source-repository-package
+  type: git
+  location: https://github.com/fused-effects/fused-effects-optics.git
+  tag: 7d680c40b89eec819bff513df3ffc1a552ca2832
