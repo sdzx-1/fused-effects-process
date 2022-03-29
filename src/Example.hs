@@ -39,8 +39,10 @@ import Process.Util
 -- import Text.Colour
 import Text.Read (readMaybe)
 import qualified Data.Text as T
+import qualified Data.Text.IO as TIO
+import qualified Data.Text.Builder.Linear as TLinear
 import qualified Data.Text.Lazy.Builder as TL
-import qualified Data.Text.Lazy.IO as TIO
+import qualified Data.Text.Lazy.IO as TLIO
 -------------------------------------log server
 
 data Level = Debug | Warn | Error deriving (Eq, Ord, Show)
@@ -83,7 +85,8 @@ logServer ::
       ( MessageChan SigLog
           :+: Metric Lines
           :+: State CheckLevelFun
-          :+: State TL.Builder
+          -- :+: State TL.Builder
+          :+: State TLinear.Builder
       )
       sig
       m,
@@ -102,13 +105,16 @@ logServer = forever $ do
         if chars > 1_000_000
           then do
             putVal tmp_chars 0
-            bu <- get
-            liftIO $ TIO.appendFile "all.log" (TL.toLazyText bu)
+            -- bu <- get
+            -- liftIO $ TLIO.appendFile "all.log" (TL.toLazyText bu)
+            bu1 <- get
+            liftIO $ TIO.appendFile "all.log" (TLinear.runBuilder bu1)
           else do
             let ln = length st
                 ltxt = TL.fromString st
             putVal tmp_chars (chars + ln)
-            modify @TL.Builder ( <> ltxt)
+            -- modify @TL.Builder ( <> ltxt)
+            modify @TLinear.Builder ( <> TLinear.fromText (T.pack st))
         liftIO $ putStr (logFun vli lv st)
     -- liftIO $ putChunksWith With24BitColours (logFun vli lv st)
     SigLog2 (SetLog lv) -> put lv
@@ -498,7 +504,8 @@ runmProcess = do
     void $
       runMetric @Lines $
         runState noCheck $
-         runState @TL.Builder "" $
+         -- runState @TL.Builder "" $
+         runState @TLinear.Builder mempty $
           runServerWithChan slog logServer
 
   print "fork et process"
