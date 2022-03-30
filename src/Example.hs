@@ -545,10 +545,8 @@ runmProcess = do
   forkIO $
     void $
       runMetric @Lines $
-        runState noCheck $
-          runState @TLinear.Builder mempty $
-            runState logState $
-              runServerWithChan slog logServer
+        runState logState $
+          runServerWithChan slog logServer
 
   print "fork et process"
   forkIO $
