@@ -71,8 +71,10 @@ noCheck _ = True
 data SetLog where
   SetLog :: CheckLevelFun -> SetLog
 
+data LogType = LogFile | LogPrint
+
 data Switch where
-  Switch :: RespVal () %1 -> Switch
+  Switch :: LogType -> RespVal () %1 -> Switch
 
 mkSigAndClass
   "SigLog"
@@ -103,7 +105,8 @@ data LogState = LogState
     _linearBuilder :: TLinear.Builder,
     _useLogFile :: Bool,
     _batchSize :: Int,
-    _logFilePath :: FilePath
+    _logFilePath :: FilePath,
+    _printOut :: Bool
   }
 
 makeLenses ''LogState
@@ -115,7 +118,8 @@ logState =
       _linearBuilder = mempty,
       _useLogFile = False,
       _batchSize = 30_000,
-      _logFilePath = "all.log"
+      _logFilePath = "all.log",
+      _printOut = True
     }
 
 logServer ::
@@ -135,9 +139,9 @@ logServer = forever $ do
       lvCheck <- use checkLevelFun
       when (lvCheck lv) $ do
         inc all_lines
-        li <- getVal all_lines
-        let vli = show li
-        liftIO $ putStr (logFun vli lv st)
+        li <- show <$> getVal all_lines
+        isPrint <- use printOut
+        when isPrint $ liftIO $ putStr (logFun li lv st)
         is_file <- use useLogFile
         when is_file $ do
           chars <- getVal tmp_chars
@@ -157,12 +161,17 @@ logServer = forever $ do
               putVal tmp_chars (chars + ln)
               linearBuilder %= (<> TLinear.fromText (T.pack st))
     SigLog2 (SetLog lv) -> checkLevelFun .= lv
-    SigLog3 (Switch rsp) ->
+    SigLog3 (Switch t rsp) ->
       withResp
         rsp
         ( do
-            liftIO $ putStrLn "switch logFile"
-            useLogFile %= not
+            case t of
+              LogFile -> do
+               liftIO $ putStrLn "switch logFile"
+               useLogFile %= not
+              LogPrint -> do
+               liftIO $ putStrLn "switch printOut"
+               printOut %= not
         )
 
 data ProcessR where
@@ -504,7 +513,8 @@ client = forever $ do
   cast @"log" $ LE $ L.intercalate "\n" (map show res)
   val <- liftIO getLine
   case val of
-    "f" -> call @"log" $ Switch
+    "f" -> call @"log" $ Switch LogFile
+    "p" -> call @"log" $ Switch LogPrint
     "d" -> cast @"log" $ SetLog (>= Debug)
     "w" -> cast @"log" $ SetLog (>= Warn)
     "e" -> cast @"log" $ SetLog (>= Error)
