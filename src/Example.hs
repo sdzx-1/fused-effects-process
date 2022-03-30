@@ -6,6 +6,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -50,6 +51,15 @@ data Level = Debug | Warn | Error deriving (Eq, Ord, Show)
 
 data Log where
   Log :: Level -> String -> Log
+
+pattern LD :: String -> Log
+pattern LD s = Log Debug s
+
+pattern LW :: String -> Log
+pattern LW s = Log Warn s
+
+pattern LE :: String -> Log
+pattern LE s = Log Error s
 
 type CheckLevelFun = Level -> Bool
 
@@ -102,7 +112,7 @@ logServer = forever $ do
         li <- getVal all_lines
         let vli = show li
         chars <- getVal tmp_chars
-        if chars > 3_0_000
+        if chars > 30_000
           then do
             putVal tmp_chars 0
             bu <- get
@@ -163,7 +173,7 @@ eotProcess = forever $ do
         cast @"et" (ProcessR pid res)
   interval <- asks einterval
   allMetrics <- getAll @ETmetric Proxy
-  cast @"log" $ Log Warn (show allMetrics)
+  cast @"log" $ LW (show allMetrics)
   liftIO $ threadDelay interval
 
 -------------------------------------process timeout checker
@@ -206,7 +216,7 @@ ptcProcess ::
   m ()
 ptcProcess = forever $ do
   allMetrics <- getAll @PTmetric Proxy
-  cast @"log" $ Log Warn $ show allMetrics
+  cast @"log" $ LW $ show allMetrics
   inc all_pt_cycle
   res <- call @"ptc" StartTimoutCheck
   tim <- asks ptctimeout
@@ -322,26 +332,26 @@ mProcess = forever $ do
           withResp
             rsp
             ( do
-                -- cast @"log" $ Log Debug "send all check message to works"
+                -- cast @"log" $ LD "send all check message to works"
                 inc all_start_timeout_check
                 sendAllCall @"w" ProcessStartTimeoutCheck
             )
         SigTimeoutCheck2 (ProcessTimeout pid) -> do
           inc all_timeout
           modify $ IntSet.insert pid
-          cast @"log" $ Log Error $ "pid: " ++ show pid ++ " health check timeout!!!"
+          cast @"log" $ LE $ "pid: " ++ show pid ++ " health check timeout!!!"
     )
     ( \case
         SigException1 (ProcessR i res) -> do
           inc all_exception
-          cast @"log" $ Log Warn $ "some process terminate " ++ show (i, res)
+          cast @"log" $ LW $ "some process terminate " ++ show (i, res)
           clearTVar @SigCommand i -- clean tvar
-          cast @"log" $ Log Error $ "some tVar clear: [" ++ show i ++ "]"
+          cast @"log" $ LE $ "some tVar clear: [" ++ show i ++ "]"
           deleteChan @SigCommand i -- remove process channel
     )
     ( \case
         SigCreate1 Create -> do
-          cast @"log" $ Log Warn "fork a work process"
+          cast @"log" $ LW "fork a work process"
           slog <- ask
           inc all_create
           createWorker @SigCommand $ \idx ch ->
@@ -357,7 +367,7 @@ mProcess = forever $ do
             rsp
             ( do
                 allM <- getAll @Wmetric Proxy
-                cast @"log" $ Log Error $ show allM
+                cast @"log" $ LE $ show allM
                 timeoutCallAll @"w" 1_000_000 Info
             )
         SigCreate3 (StopProcess i) -> do
@@ -369,7 +379,7 @@ mProcess = forever $ do
         SigCreate5 (Fwork ios) -> do
           res <- sendWorks @"w" ios ProcessWork
           inc all_fork_work
-          cast @"log" $ Log Warn $ show $ snd res
+          cast @"log" $ LW $ show $ snd res
         SigCreate6 StopAll -> do
           castAll @"w" Stop
         SigCreate7 (ToSet rsp) ->
@@ -401,7 +411,7 @@ mWork = forever $ do
   withMessageChan @SigCommand $ \case
     SigCommand1 Stop -> do
       pid <- asks workPid
-      cast @"log" $ Log Warn $ "terminate process: " ++ show pid
+      cast @"log" $ LW $ "terminate process: " ++ show pid
       throwError TerminateProcess
     SigCommand2 (Info rsp) ->
       withResp
@@ -416,7 +426,7 @@ mWork = forever $ do
         ( do
             pid <- asks workPid
             cast @"log" $
-              Log Warn $
+              LW $
                 "process "
                   ++ show pid
                   ++ " response timoue check"
@@ -451,7 +461,8 @@ client ::
   ) =>
   m ()
 client = forever $ do
-  cast @"log" $ Log Debug "input "
+  res <- call @"s" GetProcessInfo
+  cast @"log" $ LE $ L.intercalate "\n" (map show res)
   val <- liftIO getLine
   case val of
     "d" -> cast @"log" $ SetLog (>= Debug)
@@ -464,29 +475,19 @@ client = forever $ do
   case readMaybe @Int val of
     Just 0 -> do
       cast @"s" StopAll
-      res <- call @"s" GetProcessInfo
-      cast @"log" $ Log Error $ L.intercalate "\n" (map show res)
     Just 5 -> do
       cast @"s" $ Fwork [print 1, print 2, print 3]
-      res <- call @"s" GetProcessInfo
-      cast @"log" $ Log Error $ L.intercalate "\n" (map show res)
     Just n -> do
-      cast @"log" $ Log Debug $ "input value is: " ++ show n
+      cast @"log" $ LD $ "input value is: " ++ show n
       -- cast @"s" $ StopProcess n
       cast @"s" $ KillProcess n
-      res <- call @"s" GetProcessInfo
-      cast @"log" $ Log Error $ L.intercalate "\n" (map show res)
     Nothing -> do
       replicateM_ 200 $ cast @"s" Create
-      cast @"log" $ Log Debug "cast create "
+      cast @"log" $ LD "cast create "
       res <- call @"s" GetInfo
       case res of
-        Nothing -> cast @"log" $ Log Error "timeout: call process to all work check timeout"
-        Just x0 -> cast @"log" $ Log Debug $ "all info: " ++ show x0
-      toSets <- call @"s" ToSet
-      cast @"log" $ Log Debug $ "all timeout set: " ++ show toSets
-      res <- call @"s" GetProcessInfo
-      cast @"log" $ Log Error $ L.intercalate "\n" (map show res)
+        Nothing -> cast @"log" $ LE "timeout: call process to all work check timeout"
+        Just x0 -> cast @"log" $ LD $ "all info: " ++ show x0
 
 ----------------- run mProcess
 
@@ -514,7 +515,7 @@ runmProcess = do
       runWithServer @"et" se $
         runWithServer @"log" slog $
           runMetric @ETmetric $
-            runReader (EotConfig 100_0000 tvar) $
+            runReader (EotConfig 1_000_000 tvar) $
               runState @Int
                 1
                 eotProcess
@@ -526,7 +527,7 @@ runmProcess = do
         runMetric @PTmetric $
           runWithServer @"log" slog $
             runReader
-              (PtConfig 100_0000)
+              (PtConfig 1_000_000)
               ptcProcess
 
   print "fork server process"
@@ -550,4 +551,4 @@ runmProcess = do
         runWithServer @"s" sc client
 
   forever $ do
-    threadDelay 1000_0000
+    threadDelay 10_000_000
