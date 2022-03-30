@@ -4,12 +4,12 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE LinearTypes #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE NumericUnderscores #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE NumericUnderscores #-}
 
 module Example where
 
@@ -29,6 +29,12 @@ import Data.IntSet (IntSet)
 import qualified Data.IntSet as IntSet
 import qualified Data.List as L
 import Data.Text (pack)
+-- import Text.Colour
+
+import qualified Data.Text as T
+import qualified Data.Text.Builder.Linear as TLinear
+import qualified Data.Text.IO as TIO
+import qualified Data.Text.Lazy.Builder as TL
 import Data.Time
 import Process.HasServer
 import Process.HasWorkGroup
@@ -36,13 +42,8 @@ import Process.Metric
 import Process.TH
 import Process.Type
 import Process.Util
--- import Text.Colour
 import Text.Read (readMaybe)
-import qualified Data.Text as T
-import qualified Data.Text.IO as TIO
-import qualified Data.Text.Builder.Linear as TLinear
-import qualified Data.Text.Lazy.Builder as TL
-import qualified Data.Text.Lazy.IO as TLIO
+
 -------------------------------------log server
 
 data Level = Debug | Warn | Error deriving (Eq, Ord, Show)
@@ -66,8 +67,8 @@ mkSigAndClass
 
 mkMetric
   "Lines"
-  [ "all_lines"
-  , "tmp_chars"
+  [ "all_lines",
+    "tmp_chars"
   ]
 
 logFun :: String -> Level -> String -> String
@@ -85,7 +86,6 @@ logServer ::
       ( MessageChan SigLog
           :+: Metric Lines
           :+: State CheckLevelFun
-          -- :+: State TL.Builder
           :+: State TLinear.Builder
       )
       sig
@@ -105,16 +105,13 @@ logServer = forever $ do
         if chars > 1_000_000
           then do
             putVal tmp_chars 0
-            -- bu <- get
-            -- liftIO $ TLIO.appendFile "all.log" (TL.toLazyText bu)
-            bu1 <- get
-            liftIO $ TIO.appendFile "all.log" (TLinear.runBuilder bu1)
+            bu <- get
+            liftIO $ TIO.appendFile "all.log" (TLinear.runBuilder bu)
           else do
             let ln = length st
                 ltxt = TL.fromString st
             putVal tmp_chars (chars + ln)
-            -- modify @TL.Builder ( <> ltxt)
-            modify @TLinear.Builder ( <> TLinear.fromText (T.pack st))
+            modify @TLinear.Builder (<> TLinear.fromText (T.pack st))
         liftIO $ putStr (logFun vli lv st)
     -- liftIO $ putChunksWith With24BitColours (logFun vli lv st)
     SigLog2 (SetLog lv) -> put lv
@@ -361,7 +358,7 @@ mProcess = forever $ do
             ( do
                 allM <- getAll @Wmetric Proxy
                 cast @"log" $ Log Error $ show allM
-                timeoutCallAll @"w" 1000000 Info
+                timeoutCallAll @"w" 1_000_000 Info
             )
         SigCreate3 (StopProcess i) -> do
           castById @"w" i Stop
@@ -417,8 +414,12 @@ mWork = forever $ do
       withResp
         rsp
         ( do
-            -- pid <- asks workPid
-            -- cast @"log" $ Log Warn $ "process " ++ show pid ++ " response timoue check"
+            pid <- asks workPid
+            cast @"log" $
+              Log Warn $
+                "process "
+                  ++ show pid
+                  ++ " response timoue check"
             pure TimeoutCheckFinish
         )
     SigCommand4 (ProcessWork work rsp) -> do
@@ -476,7 +477,7 @@ client = forever $ do
       res <- call @"s" GetProcessInfo
       cast @"log" $ Log Error $ L.intercalate "\n" (map show res)
     Nothing -> do
-      replicateM_ 20000 $ cast @"s" Create
+      replicateM_ 200 $ cast @"s" Create
       cast @"log" $ Log Debug "cast create "
       res <- call @"s" GetInfo
       case res of
@@ -504,9 +505,8 @@ runmProcess = do
     void $
       runMetric @Lines $
         runState noCheck $
-         -- runState @TL.Builder "" $
-         runState @TLinear.Builder mempty $
-          runServerWithChan slog logServer
+          runState @TLinear.Builder mempty $
+            runServerWithChan slog logServer
 
   print "fork et process"
   forkIO $
@@ -514,7 +514,7 @@ runmProcess = do
       runWithServer @"et" se $
         runWithServer @"log" slog $
           runMetric @ETmetric $
-            runReader (EotConfig 1000000 tvar) $
+            runReader (EotConfig 100_0000 tvar) $
               runState @Int
                 1
                 eotProcess
@@ -526,7 +526,7 @@ runmProcess = do
         runMetric @PTmetric $
           runWithServer @"log" slog $
             runReader
-              (PtConfig 1000000)
+              (PtConfig 100_0000)
               ptcProcess
 
   print "fork server process"
@@ -550,4 +550,4 @@ runmProcess = do
         runWithServer @"s" sc client
 
   forever $ do
-    threadDelay 10000000
+    threadDelay 1000_0000
