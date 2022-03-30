@@ -102,7 +102,7 @@ logServer = forever $ do
         li <- getVal all_lines
         let vli = show li
         chars <- getVal tmp_chars
-        if chars > 1_000_000
+        if chars > 3_0_000
           then do
             putVal tmp_chars 0
             bu <- get
