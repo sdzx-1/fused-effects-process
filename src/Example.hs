@@ -171,14 +171,13 @@ logServer = forever $ do
     SigLog3 (Switch t rsp) ->
       withResp
         rsp
-        ( do
-            case t of
-              LogFile -> do
-                liftIO $ putStrLn "switch logFile"
-                useLogFile %= not
-              LogPrint -> do
-                liftIO $ putStrLn "switch printOut"
-                printOut %= not
+        ( case t of
+            LogFile -> do
+              liftIO $ putStrLn "switch logFile"
+              useLogFile %= not
+            LogPrint -> do
+              liftIO $ putStrLn "switch printOut"
+              printOut %= not
         )
     SigLog4 Stop -> do
       whenM (use useLogFile) $ do
@@ -392,7 +391,7 @@ mProcess = forever $ do
           withResp
             rsp
             ( do
-                -- cast @"log" $ LD "send all check message to works"
+                cast @"log" $ LD "send all check message to works"
                 inc all_start_timeout_check
                 sendAllCall @"w" ProcessStartTimeoutCheck
             )
