@@ -68,6 +68,11 @@ type CheckLevelFun = Level -> Bool
 noCheck :: CheckLevelFun
 noCheck _ = True
 
+whenM :: Monad m => m Bool -> m () -> m ()
+whenM b m = do
+  bool <- b
+  when bool m
+
 data SetLog where
   SetLog :: CheckLevelFun -> SetLog
 
@@ -140,13 +145,11 @@ logServer = forever $ do
       when (lvCheck lv) $ do
         inc all_lines
         li <- show <$> getVal all_lines
-        isPrint <- use printOut
-        when isPrint $ liftIO $ putStr (logFun li lv st)
-        is_file <- use useLogFile
-        when is_file $ do
+        whenM (use printOut) $ liftIO $ putStr (logFun li lv st)
+        whenM (use useLogFile) $ do
           chars <- getVal tmp_chars
-          batchS <- use batchSize
-          if chars > batchS
+          batch <- use batchSize
+          if chars > batch
             then do
               putVal tmp_chars 0
               bu <- use linearBuilder
@@ -167,11 +170,11 @@ logServer = forever $ do
         ( do
             case t of
               LogFile -> do
-               liftIO $ putStrLn "switch logFile"
-               useLogFile %= not
+                liftIO $ putStrLn "switch logFile"
+                useLogFile %= not
               LogPrint -> do
-               liftIO $ putStrLn "switch printOut"
-               printOut %= not
+                liftIO $ putStrLn "switch printOut"
+                printOut %= not
         )
 
 data ProcessR where
