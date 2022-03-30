@@ -49,6 +49,9 @@ import Text.Read (readMaybe)
 
 -------------------------------------log server
 
+data Stop where
+  Stop :: Stop
+
 data Level = Debug | Warn | Error deriving (Eq, Ord, Show)
 
 data Log where
@@ -85,7 +88,8 @@ mkSigAndClass
   "SigLog"
   [ ''Log,
     ''SetLog,
-    ''Switch
+    ''Switch,
+    ''Stop
   ]
 
 mkMetric
@@ -176,6 +180,14 @@ logServer = forever $ do
                 liftIO $ putStrLn "switch printOut"
                 printOut %= not
         )
+    SigLog4 Stop -> do
+      whenM (use useLogFile) $ do
+        bu <- use linearBuilder
+        file_path <- use logFilePath
+        liftIO $
+          TIO.appendFile
+            file_path
+            (TLinear.runBuilder bu)
 
 data ProcessR where
   ProcessR :: Int -> (Either SomeException ()) -> ProcessR
@@ -282,9 +294,6 @@ ptcProcess = forever $ do
         pure ()
 
 -------------------------------------Manager - Work, Manager
-
-data Stop where
-  Stop :: Stop
 
 data Info where
   Info :: RespVal (Int, String) %1 -> Info
