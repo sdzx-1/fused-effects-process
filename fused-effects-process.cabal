@@ -29,6 +29,7 @@ library
                     , Process.TChan
                     , Type
                     , Example
+                    , Timer
 
     -- Modules included in this library but not exported.
     -- other-modules:
