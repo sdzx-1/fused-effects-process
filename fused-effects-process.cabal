@@ -27,6 +27,7 @@ library
                     , Process.Type
                     , Process.Util
                     , Process.TChan
+                    , Type
                     , Example
 
     -- Modules included in this library but not exported.
@@ -45,7 +46,6 @@ library
                     , template-haskell
                     , time
                     , aeson
-                 ---, safe-coloured-text
                     , text
                     , binary
                     , linear-builder
