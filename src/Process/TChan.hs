@@ -24,8 +24,9 @@ newTChanIO = T.atomically $ TChan <$> T.newTVar 0 <*> T.newTChan
 
 readTChan :: TChan a -> T.STM a
 readTChan (TChan tv tc) = do
+  v <- T.readTChan tc
   T.modifyTVar' tv (\x -> x - 1)
-  T.readTChan tc
+  pure v
 
 getChanSize :: TChan a -> IO Int
 getChanSize (TChan tv _) = T.atomically $ T.readTVar tv
