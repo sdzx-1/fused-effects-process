@@ -1,6 +1,6 @@
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE StandaloneKindSignatures #-}
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE GADTs #-}
 
 module Process.HasPeerGroup where
 
@@ -10,11 +10,14 @@ module Process.HasPeerGroup where
 -- d [b,e]
 -- e [a]
 
+import Control.Applicative
 import Control.Concurrent
-import Control.Concurrent.STM (TChan)
+import Control.Concurrent.STM
+import Control.Concurrent.STM.TMVar
 import Data.Kind
 import Data.Map (Map)
 import Process.Type
+import Timer
 
 newtype NodeID = NodeID Int
 
@@ -40,3 +43,40 @@ data SendMessage s ts m a where
   SendMessage :: (ToSig t s) => Int -> t -> SendMessage s ts m ()
   SendAllCall :: (ToSig t s) => (RespVal b -> t) -> SendMessage s ts m [(Int, MVar b)]
   SendAllCast :: (ToSig t s) => t -> SendMessage s ts m ()
+
+data State
+
+waitTMVars :: [(Int, TMVar a)] -> STM (Int, a)
+waitTMVars tmvs =
+  foldr (<|>) retry $
+    map
+      ( \(i, tmv) -> do
+          mv <- takeTMVar tmv
+          pure (i, mv)
+      )
+      tmvs
+
+fun :: IO ()
+fun = do
+  tmvs <- atomically $ do
+    t1 <- newEmptyTMVar
+    t2 <- newEmptyTMVar
+    t3 <- newTMVar 3
+    t4 <- newTMVar 4
+    pure [(1, t1), (2, t2), (3, t3), (4, t4)]
+
+  tmout <- newTimeout 1
+  threadDelay 200000
+  res <- atomically $ do
+    ( do
+        tt <- readTimeout tmout
+        case tt of
+          TimeoutPending -> retry
+          TimeoutFired -> pure Nothing
+          TimeoutCancelled -> pure Nothing
+      )
+      <|> (Just <$> waitTMVars tmvs)
+  case res of
+    Nothing -> undefined
+    Just val -> undefined
+  print res
