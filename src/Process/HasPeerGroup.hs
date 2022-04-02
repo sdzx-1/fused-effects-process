@@ -56,6 +56,14 @@ waitTMVars tmvs =
       )
       tmvs
 
+waitTimeout :: Timeout -> STM (Maybe a)
+waitTimeout tmout = do
+  tt <- readTimeout tmout
+  case tt of
+    TimeoutPending -> retry
+    TimeoutFired -> pure Nothing
+    TimeoutCancelled -> pure Nothing
+
 fun :: IO ()
 fun = do
   tmvs <- atomically $ do
@@ -64,19 +72,15 @@ fun = do
     t3 <- newTMVar 3
     t4 <- newTMVar 4
     pure [(1, t1), (2, t2), (3, t3), (4, t4)]
-
   tmout <- newTimeout 1
-  threadDelay 200000
-  res <- atomically $ do
-    ( do
-        tt <- readTimeout tmout
-        case tt of
-          TimeoutPending -> retry
-          TimeoutFired -> pure Nothing
-          TimeoutCancelled -> pure Nothing
-      )
-      <|> (Just <$> waitTMVars tmvs)
+
+  res <- atomically $ waitTimeout tmout <|> (Just <$> waitTMVars tmvs)
   case res of
-    Nothing -> undefined
-    Just val -> undefined
+    Nothing -> do
+      print "timeout, reselete leader"
+      undefined
+    Just (i, val) -> do
+      let nl = filter ((/=i) . fst) tmvs
+      undefined
+
   print res
