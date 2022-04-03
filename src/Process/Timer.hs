@@ -1,7 +1,7 @@
 -- copy from https://github.com/input-output-hk/ouroboros-network/blob/master/io-classes/src/Control/Monad/Class/MonadTimer.hs
 {-# LANGUAGE NumericUnderscores #-}
 
-module Timer where
+module Process.Timer where
 
 import Control.Concurrent (threadDelay)
 import qualified Control.Concurrent.STM as STM

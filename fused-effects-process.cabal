@@ -27,9 +27,9 @@ library
                     , Process.Type
                     , Process.Util
                     , Process.TChan
+                    , Process.Timer
                     , Type
                     , Example
-                    , Timer
                     , MetricServer
 
     -- Modules included in this library but not exported.

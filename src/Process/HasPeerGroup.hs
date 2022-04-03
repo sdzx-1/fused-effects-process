@@ -17,7 +17,7 @@ import Control.Concurrent.STM.TMVar
 import Data.Kind
 import Data.Map (Map)
 import Process.Type
-import Timer
+import Process.Timer
 
 newtype NodeID = NodeID Int
 
