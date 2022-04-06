@@ -15,11 +15,14 @@ module MetricServer where
 import Control.Algebra
 import Control.Carrier.State.Strict
 import Control.Monad.IO.Class
+import Data.Kind
 import GHC.TypeLits
 import Process.HasServer
 import Process.TH
 import Process.Type
 import Process.Util
+
+data T (namespace :: Symbol) (t :: Type) = T
 
 data L1 where
   L1 :: L1
