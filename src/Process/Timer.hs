@@ -3,7 +3,9 @@
 
 module Process.Timer where
 
+import Control.Applicative
 import Control.Concurrent (threadDelay)
+import Control.Concurrent.STM
 import qualified Control.Concurrent.STM as STM
 import Control.Exception (assert)
 import Control.Monad (forever)
@@ -72,3 +74,42 @@ diffTimeToMicrosecondsAsInt d =
 
 microsecondsAsIntToDiffTime :: Int -> DiffTime
 microsecondsAsIntToDiffTime = (/ 1_000_000) . fromIntegral
+
+waitTMVars :: [(Int, TMVar a)] -> STM (Int, a)
+waitTMVars tmvs =
+  foldr (<|>) retry $
+    map
+      ( \(i, tmv) -> do
+          mv <- takeTMVar tmv
+          pure (i, mv)
+      )
+      tmvs
+
+waitTimeout :: Timeout -> STM (Maybe a)
+waitTimeout tmout = do
+  tt <- readTimeout tmout
+  case tt of
+    TimeoutPending -> retry
+    TimeoutFired -> pure Nothing
+    TimeoutCancelled -> pure Nothing
+
+fun :: IO ()
+fun = do
+  tmvs <- atomically $ do
+    t1 <- newEmptyTMVar
+    t2 <- newEmptyTMVar
+    t3 <- newTMVar 3
+    t4 <- newTMVar 4
+    pure [(1, t1), (2, t2), (3, t3), (4, t4)]
+  tmout <- newTimeout 1
+
+  res <- atomically $ waitTimeout tmout <|> (Just <$> waitTMVars tmvs)
+  case res of
+    Nothing -> do
+      print "timeout, reselete leader"
+      undefined
+    Just (i, val) -> do
+      let nl = filter ((/= i) . fst) tmvs
+      undefined
+
+  print res
