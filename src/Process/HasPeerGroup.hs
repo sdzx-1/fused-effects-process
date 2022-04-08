@@ -32,7 +32,8 @@ import Control.Concurrent.STM
   ( TMVar,
     atomically,
     newEmptyTMVarIO,
-    takeTMVar, putTMVar
+    putTMVar,
+    takeTMVar,
   )
 import Control.Effect.Labelled
   ( Algebra (..),
@@ -80,6 +81,7 @@ data PeerAction s ts m a where
   ------- action
   Join :: NodeID -> TChan (Sum s ts) -> PeerAction s ts m ()
   Leave :: NodeID -> PeerAction s ts m ()
+  PeerSize :: PeerAction s ts m Int
   ------- messge
   SendMessage :: (ToSig t s) => NodeID -> t -> PeerAction s ts m ()
   SendAllCall :: (ToSig t s) => (RespVal b -> t) -> PeerAction s ts m [(NodeID, TMVar b)]
@@ -110,6 +112,13 @@ join ::
   TChan (Sum s ts) ->
   m ()
 join i t = sendLabelled @peerName (Join i t)
+
+peerSize ::
+  forall (peerName :: Symbol) s ts sig m.
+  ( HasLabelled peerName (PeerAction s ts) sig m
+  ) =>
+  m Int
+peerSize = sendLabelled @peerName PeerSize
 
 sendReq ::
   forall (peerName :: Symbol) s ts sig m t.
@@ -185,6 +194,9 @@ instance
       ps@NodeState {peers} <- get @(NodeState s ts)
       put (ps {peers = Map.delete nid peers})
       pure ctx
+    L PeerSize -> do
+      ps@NodeState {peers} <- get @(NodeState s ts)
+      pure (Map.size peers <$ ctx)
     L (SendMessage nid t) -> do
       ps@NodeState {peers} <- get @(NodeState s ts)
       case Map.lookup nid peers of

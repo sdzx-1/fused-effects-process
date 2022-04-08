@@ -78,7 +78,7 @@ diffTimeToMicrosecondsAsInt d =
 microsecondsAsIntToDiffTime :: Int -> DiffTime
 microsecondsAsIntToDiffTime = (/ 1_000_000) . fromIntegral
 
-waitTMVars :: [(Int, TMVar a)] -> STM (Int, a)
+waitTMVars :: [(index, TMVar a)] -> STM (index, a)
 waitTMVars tmvs =
   foldr (<|>) retry $
     map
