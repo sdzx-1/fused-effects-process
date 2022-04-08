@@ -31,6 +31,7 @@ library
                     , Type
                     , Example
                     , MetricServer
+                    , Raft
 
     -- Modules included in this library but not exported.
     -- other-modules:

@@ -58,6 +58,16 @@ withMessageChan f = do
   Some v <- liftIO $ atomically $ readTChan tc
   f v
 
+readMessageChan ::
+  forall f es sig m.
+  (MonadIO m) =>
+  TChan (Some f) ->
+  (forall s. f s %1 -> m ()) ->
+  m ()
+readMessageChan tc f = do
+  Some v <- liftIO $ atomically $ readTChan tc
+  f v
+
 runServerWithChan ::
   forall f m a. TChan (Some f) -> ReaderC (TChan (Some f)) m a -> m a
 runServerWithChan = runReader

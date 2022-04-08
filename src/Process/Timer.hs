@@ -26,6 +26,9 @@ data TimeoutState
 
 data Timeout = TimeoutIO !(STM.TVar TimeoutState) !GHC.TimeoutKey
 
+instance Show Timeout where
+  show (TimeoutIO _ _) = "timeout ref"
+
 readTimeout :: Timeout -> STM.STM TimeoutState
 readTimeout (TimeoutIO var _key) = STM.readTVar var
 

@@ -21,20 +21,34 @@
 
 module Process.HasPeerGroup where
 
-import Control.Applicative
 import Control.Carrier.State.Strict
-import Control.Concurrent
+  ( Algebra,
+    StateC (..),
+    evalState,
+    get,
+    put,
+  )
 import Control.Concurrent.STM
-import Control.Concurrent.STM.TMVar
+  ( TMVar,
+    atomically,
+    newEmptyTMVarIO,
+  )
 import Control.Effect.Labelled
-import Control.Monad
-import Control.Monad.IO.Class
-import Data.Kind
+  ( Algebra (..),
+    HasLabelled,
+    Labelled,
+    runLabelled,
+    sendLabelled,
+    type (:+:) (..),
+  )
+import Control.Monad (forM)
+import Control.Monad.IO.Class (MonadIO (..))
+import Data.Kind (Type)
 import Data.Map (Map)
 import qualified Data.Map as Map
-import GHC.TypeLits
-import Process.Timer
-import Process.Type (Elem, Some, Sum, ToSig, inject)
+import GHC.TypeLits (Symbol)
+import Process.TChan (TChan, newTChanIO, writeTChan)
+import Process.Type (Elem, Elems, Some, Sum, ToList, ToSig, inject)
 import Unsafe.Coerce (unsafeCoerce)
 
 newtype NodeID = NodeID Int deriving (Show, Eq, Ord)
@@ -46,6 +60,11 @@ newtype NodeID = NodeID Int deriving (Show, Eq, Ord)
 -- callPeers :: Message -> m [RespVal]
 -- castPeer :: NodeID -> Message -> m ()
 -- castPeers :: Message -> m ()
+
+type HasPeerServer (serverName :: Symbol) s ts sig m =
+  ( Elems serverName ts (ToList s),
+    HasLabelled serverName (PeerAction s ts) sig m
+  )
 
 data RespVal a where
   RespVal :: TMVar a -> RespVal a
