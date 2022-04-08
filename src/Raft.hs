@@ -41,6 +41,11 @@ import Process.Timer
 import Process.Type (Some (..), ToList, ToSig (..))
 import Process.Util hiding (withResp)
 
+whenM :: Monad m => m Bool -> m () -> m ()
+whenM b m = do
+  bool <- b
+  when bool m
+
 data Vote where
   Vote :: RespVal Bool %1 -> Vote
 
@@ -122,14 +127,14 @@ t1 = forever $ do
     Candidate -> do
       cs <- callAll @"peer" Vote
       timer <- liftIO $ newTimeout 2
-      size <- peerSize @"peer"
+      halfVote <- (`div` 2) <$> peerSize @"peer"
+
       -- clean all_vote
       putVal all_vote 0
       catchError @ProcessError
         ( forM_ [1 .. length cs + 1] $ \index -> do
             when (index == length cs + 1) (throwError HalfVoteFailed)
-            votes <- getVal all_vote
-            when (votes >= (size `div` 2)) (throwError HalfVoteSuccess)
+            whenM ((>= halfVote) <$> getVal all_vote) (throwError HalfVoteSuccess)
             res <- liftIO $ atomically $ waitTimeout timer <|> (Just <$> waitTMVars cs)
             case res of
               Nothing -> do
