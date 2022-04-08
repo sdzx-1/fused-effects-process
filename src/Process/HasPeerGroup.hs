@@ -32,6 +32,7 @@ import Control.Concurrent.STM
   ( TMVar,
     atomically,
     newEmptyTMVarIO,
+    takeTMVar, putTMVar
   )
 import Control.Effect.Labelled
   ( Algebra (..),
@@ -61,13 +62,18 @@ newtype NodeID = NodeID Int deriving (Show, Eq, Ord)
 -- castPeer :: NodeID -> Message -> m ()
 -- castPeers :: Message -> m ()
 
-type HasPeerGroup (serverName :: Symbol) s ts sig m =
-  ( Elems serverName ts (ToList s),
-    HasLabelled serverName (PeerAction s ts) sig m
+type HasPeerGroup (peerName :: Symbol) s ts sig m =
+  ( Elems peerName ts (ToList s),
+    HasLabelled peerName (PeerAction s ts) sig m
   )
 
 data RespVal a where
   RespVal :: TMVar a -> RespVal a
+
+withResp :: (MonadIO m) => RespVal a %1 -> m a -> m ()
+withResp (RespVal tmv) ma = do
+  val <- ma
+  liftIO $ atomically $ putTMVar tmv val
 
 type PeerAction :: (Type -> Type) -> [Type] -> (Type -> Type) -> Type -> Type
 data PeerAction s ts m a where
@@ -115,6 +121,34 @@ sendReq ::
   t ->
   m ()
 sendReq i t = sendLabelled @peerName (SendMessage i t)
+
+callById ::
+  forall peerName s ts sig m e b.
+  ( Elem peerName e ts,
+    ToSig e s,
+    MonadIO m,
+    HasLabelled (peerName :: Symbol) (PeerAction s ts) sig m
+  ) =>
+  NodeID ->
+  (RespVal b -> e) ->
+  m b
+callById i f = do
+  mvar <- liftIO newEmptyTMVarIO
+  sendReq @peerName i (f $ RespVal mvar)
+  liftIO $ atomically $ takeTMVar mvar
+
+castById ::
+  forall peerName s ts sig m e b.
+  ( Elem peerName e ts,
+    ToSig e s,
+    MonadIO m,
+    HasLabelled (peerName :: Symbol) (PeerAction s ts) sig m
+  ) =>
+  NodeID ->
+  e ->
+  m ()
+castById i f = do
+  sendReq @peerName i f
 
 callAll ::
   forall (peerName :: Symbol) s ts sig m t b.

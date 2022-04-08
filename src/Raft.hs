@@ -23,6 +23,7 @@
 module Raft where
 
 import Control.Algebra
+import Control.Applicative
 import Control.Carrier.Error.Either
 import Control.Carrier.State.Strict
 import Control.Concurrent.STM (atomically)
@@ -37,44 +38,73 @@ import Process.Metric
 import Process.TChan
 import Process.TH
 import Process.Timer
-import Process.Type (ToList, ToSig (..))
-import Process.Util
+import Process.Type (Some (..), ToList, ToSig (..))
+import Process.Util hiding (withResp)
+import Raft (Counter (all_leader_timeout))
 
-data Hello where
-  A :: RespVal String %1 -> Hello
+data TC where
+  A :: RespVal String %1 -> TC
 
 mkSigAndClass
   "SigRPC"
-  [''Hello]
+  [''TC]
 
 data Role = Follower | Candidate | Leader deriving (Show, Eq, Ord)
 
-data ProcessError = ProcessError
+data ProcessError = TimeoutError
 
 data CoreState = CoreState
   { _nodeRole :: Role,
-    _nodeTitle :: String,
     _timeout :: Timeout
   }
   deriving (Show)
 
 makeLenses ''CoreState
 
+readMessageChanWithTimeout ::
+  forall f es sig m.
+  (MonadIO m, Has (Error ProcessError) sig m) =>
+  Timeout ->
+  TChan (Some f) ->
+  (forall s. f s %1 -> m ()) ->
+  m ()
+readMessageChanWithTimeout to tc f = do
+  v <- liftIO $ atomically $ waitTimeout to <|> (Just <$> readTChan tc)
+  case v of
+    Nothing -> throwError TimeoutError
+    Just (Some v) -> f v
+
+mkMetric
+  "Counter"
+  [ "all_cycle",
+    "all_leader_timeout"
+  ]
+
 t1 ::
   ( MonadIO m,
-    HasPeerGroup "peer" SigRPC '[Hello] sig m,
+    Has (Metric Counter) sig m,
+    HasPeerGroup "peer" SigRPC '[TC] sig m,
     Has (State CoreState :+: Error ProcessError) sig m
   ) =>
   m ()
 t1 = forever $ do
+  inc all_cycle
   use nodeRole >>= \case
     Follower -> do
-      tc <- getChan @"peer"
-      readMessageChan tc \case
-        SigRPC1 (A rsp) ->
-          undefined
-            rsp
-            undefined
+      (tc, timer) <- (,) <$> getChan @"peer" <*> use timeout
+      catchError @ProcessError
+        ( readMessageChanWithTimeout timer tc \case
+            SigRPC1 (A rsp) ->
+              withResp
+                rsp
+                (pure "hello")
+        )
+        ( \case
+            TimeoutError -> do
+              inc all_leader_timeout
+              -- timeout, need new leader select
+              undefined
+        )
     Candidate -> undefined
     Leader -> undefined
   res <- callAll @"peer" A
@@ -85,5 +115,7 @@ r1 = do
   tr <- newTimeout 5
   void $
     runWithPeers @"peer" (NodeID 1) $
-      runError @ProcessError $
-        runState (CoreState Follower "" tr) $ t1
+      runMetric @Counter $
+        runState (CoreState Follower tr) $
+          runError @ProcessError $
+            t1
