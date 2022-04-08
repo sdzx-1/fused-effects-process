@@ -62,7 +62,7 @@ makeLenses ''CoreState
 
 t1 ::
   ( MonadIO m,
-    HasPeerServer "peer" SigRPC '[Hello] sig m,
+    HasPeerGroup "peer" SigRPC '[Hello] sig m,
     Has (State CoreState :+: Error ProcessError) sig m
   ) =>
   m ()

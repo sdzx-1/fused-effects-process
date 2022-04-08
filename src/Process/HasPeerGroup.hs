@@ -61,7 +61,7 @@ newtype NodeID = NodeID Int deriving (Show, Eq, Ord)
 -- castPeer :: NodeID -> Message -> m ()
 -- castPeers :: Message -> m ()
 
-type HasPeerServer (serverName :: Symbol) s ts sig m =
+type HasPeerGroup (serverName :: Symbol) s ts sig m =
   ( Elems serverName ts (ToList s),
     HasLabelled serverName (PeerAction s ts) sig m
   )
