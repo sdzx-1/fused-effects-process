@@ -134,7 +134,7 @@ mkSigAndClass
 
 data Role = Follower | Candidate | Leader deriving (Show, Eq, Ord)
 
-data ProcessError
+data Control
   = TimeoutError
   | HalfVoteFailed
   | HalfVoteSuccess
@@ -151,7 +151,7 @@ makeLenses ''CoreState
 
 readMessageChanWithTimeout ::
   forall f es sig m.
-  (MonadIO m, Has (Error ProcessError) sig m) =>
+  (MonadIO m, Has (Error Control) sig m) =>
   Timeout ->
   TChan (Some f) ->
   (forall s. f s %1 -> m ()) ->
@@ -182,7 +182,7 @@ t1 ::
     -- peer rpc, message chan
     HasPeerGroup "peer" SigRPC '[TC, VoteExample] sig m,
     -- raft core state, control flow
-    Has (State CoreState :+: Error ProcessError) sig m
+    Has (State CoreState :+: Error Control) sig m
   ) =>
   m ()
 t1 = forever $ do
@@ -190,7 +190,7 @@ t1 = forever $ do
   use nodeRole >>= \case
     Follower -> do
       (tc, timer) <- (,) <$> getChan @"peer" <*> use timeout
-      catchError @ProcessError
+      catchError @Control
         ( readMessageChanWithTimeout timer tc \case
             SigRPC1 (A rsp) ->
               withResp
@@ -225,7 +225,7 @@ t1 = forever $ do
 
       -- clean all_vote
       putVal all_vote 0
-      catchError @ProcessError
+      catchError @Control
         ( forM_ [1 .. length cs + 1] $ \index -> do
             when (index == length cs + 1) (throwError HalfVoteFailed)
             whenM ((>= halfVote) <$> getVal all_vote) (throwError HalfVoteSuccess)
@@ -258,5 +258,5 @@ r1 = do
       runMetric @Counter $
         runState (CoreState Follower tr) $
           runState @(Map Int Int) Map.empty $
-            runError @ProcessError $
+            runError @Control $
               t1 @MapCommand @(Map Int Int)
