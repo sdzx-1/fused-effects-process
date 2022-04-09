@@ -31,7 +31,10 @@ import Control.Effect.Error
 import Control.Effect.Optics
 import Control.Monad
 import Control.Monad.IO.Class
+import Data.Kind
 import Data.Map (Map)
+import qualified Data.Map as Map
+import qualified Data.Typeable as T
 import Optics (makeLenses)
 import Process.HasPeerGroup
 import Process.HasServer
@@ -53,16 +56,36 @@ data VoteExample where
 data TC where
   A :: RespVal String %1 -> TC
 
-data Command = Command
-
 data Term = Term Int deriving (Show, Eq, Ord)
 
 type Index = Int
 
-data PersistentState = PersistentState
+-- machine class
+
+class Machine command state where
+  applyCommand :: command -> state -> state
+
+---------- command example ----------------
+type Key = Int
+
+type Val = Int
+
+data MapCommand = EmptyMap | Insert Key Val | Delete Key
+  deriving (Show, Eq, T.Typeable)
+
+instance Machine MapCommand (Map Int Int) where
+  applyCommand comm machine =
+    case comm of
+      EmptyMap -> Map.empty
+      Insert k v -> Map.insert k v machine
+      Delete k -> Map.delete k machine
+
+-------------------------------------------
+
+data PersistentState command = PersistentState
   { currentTerm :: Term,
     votedFor :: Maybe NodeId,
-    logs :: [(Term, Index, Command)]
+    logs :: [(Term, Index, command)]
   }
 
 data VolatileState = VolatileState
@@ -75,17 +98,21 @@ data LeaderVolatileState = LeaderVolatileState
     matchIndexs :: Map NodeId Index
   }
 
-data Entries = Entries
+data Entries command = Entries
   { eterm :: Term,
     leaderId :: NodeId,
     preLogIndex :: Index,
     prevLogTerm :: Term,
-    entries :: [Command],
+    entries :: [command],
     leaderCommit :: Index
   }
 
 data AppendEntries where
-  AppendEntries :: Entries -> RespVal (Term, Bool) %1 -> AppendEntries
+  AppendEntries ::
+    (Machine command state, T.Typeable (command)) =>
+    Entries command ->
+    RespVal (Term, Bool) %1 ->
+    AppendEntries
 
 data Vote = Vote
   { vterm :: Term,
@@ -145,9 +172,17 @@ mkMetric
   ]
 
 t1 ::
+  forall command state sig m.
   ( MonadIO m,
+    -- metric
     Has (Metric Counter) sig m,
+    -- machine
+    T.Typeable command,
+    Machine command state,
+    Has (State state) sig m,
+    -- peer rpc, message chan
     HasPeerGroup "peer" SigRPC '[TC, VoteExample] sig m,
+    -- core state, control flow
     Has (State CoreState :+: Error ProcessError) sig m
   ) =>
   m ()
@@ -162,6 +197,18 @@ t1 = forever $ do
               withResp
                 rsp
                 ( pure "hello"
+                )
+            SigRPC3 (AppendEntries ents rsp) -> do
+              withResp
+                rsp
+                ( do
+                    -- update machine
+                    forM_ (entries ents) $ \comm -> do
+                      case T.cast comm :: Maybe command of
+                        Nothing -> error "interal error"
+                        Just command ->
+                          modify @state (applyCommand command)
+                    pure undefined
                 )
         )
         ( \case
@@ -211,5 +258,6 @@ r1 = do
     runWithPeers @"peer" (NodeId 1) $
       runMetric @Counter $
         runState (CoreState Follower tr) $
-          runError @ProcessError $
-            t1
+          runState @(Map Int Int) Map.empty $
+            runError @ProcessError $
+              t1 @MapCommand @(Map Int Int)
