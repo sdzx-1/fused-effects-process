@@ -18,6 +18,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# OPTIONS_GHC -Wall #-}
 
 module Raft where
 
@@ -26,23 +27,19 @@ import Control.Applicative
 import Control.Carrier.Error.Either
 import Control.Carrier.State.Strict
 import Control.Concurrent.STM (atomically)
-import Control.Effect.Error
 import Control.Effect.Optics
 import Control.Monad
 import Control.Monad.IO.Class
-import Data.Kind
 import Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Data.Typeable as T
 import Optics (makeLenses)
 import Process.HasPeerGroup
-import Process.HasServer
 import Process.Metric
 import Process.TChan
 import Process.TH
 import Process.Timer
 import Process.Type (Some (..), ToList, ToSig (..))
-import Process.Util hiding (withResp)
 
 whenM :: Monad m => m Bool -> m () -> m ()
 whenM b m = do
@@ -51,9 +48,6 @@ whenM b m = do
 
 data VoteExample where
   VoteExample :: RespVal Bool %1 -> VoteExample
-
-data TC where
-  A :: RespVal String %1 -> TC
 
 newtype Term = Term Int deriving (Show, Eq, Ord)
 
@@ -108,7 +102,9 @@ data Entries command = Entries
 
 data AppendEntries where
   AppendEntries ::
-    (Machine command state, T.Typeable command) =>
+    ( Machine command state,
+      T.Typeable command
+    ) =>
     Entries command ->
     RespVal (Term, Bool) %1 ->
     AppendEntries
@@ -125,8 +121,7 @@ data RequestVote where
 
 mkSigAndClass
   "SigRPC"
-  [ ''TC,
-    ''VoteExample,
+  [ ''VoteExample,
     -------------
     ''AppendEntries,
     ''RequestVote
@@ -150,7 +145,7 @@ data CoreState = CoreState
 makeLenses ''CoreState
 
 readMessageChanWithTimeout ::
-  forall f es sig m.
+  forall f sig m.
   (MonadIO m, Has (Error Control) sig m) =>
   Timeout ->
   TChan (Some f) ->
@@ -160,7 +155,7 @@ readMessageChanWithTimeout to tc f = do
   v <- liftIO $ atomically $ waitTimeout to <|> (Just <$> readTChan tc)
   case v of
     Nothing -> throwError TimeoutError
-    Just (Some v) -> f v
+    Just (Some val) -> f val
 
 mkMetric
   "Counter"
@@ -180,7 +175,7 @@ t1 ::
     Machine command state,
     Has (State state) sig m,
     -- peer rpc, message chan
-    HasPeerGroup "peer" SigRPC '[TC, VoteExample] sig m,
+    HasPeerGroup "peer" SigRPC '[VoteExample] sig m,
     -- raft core state, control flow
     Has (State CoreState :+: Error Control) sig m
   ) =>
@@ -192,12 +187,8 @@ t1 = forever $ do
       (tc, timer) <- (,) <$> getChan @"peer" <*> use timeout
       catchError @Control
         ( readMessageChanWithTimeout timer tc \case
-            SigRPC1 (A rsp) ->
-              withResp
-                rsp
-                ( pure "hello"
-                )
-            SigRPC3 (AppendEntries ents rsp) -> do
+            SigRPC1 (VoteExample rsp) -> undefined rsp
+            SigRPC2 (AppendEntries ents rsp) -> do
               withResp
                 rsp
                 ( do
@@ -205,10 +196,10 @@ t1 = forever $ do
                     forM_ (entries ents) $ \comm -> do
                       case T.cast comm :: Maybe command of
                         Nothing -> error "interal error"
-                        Just command ->
-                          modify @state (applyCommand command)
+                        Just command -> modify @state (applyCommand command)
                     pure undefined
                 )
+            SigRPC3 (RequestVote _ rsp) -> undefined rsp
         )
         ( \case
             TimeoutError -> do
@@ -217,6 +208,7 @@ t1 = forever $ do
               -- change role to Candidate
               nodeRole .= Candidate
               undefined
+            _ -> undefined
         )
     Candidate -> do
       cs <- callAll @"peer" VoteExample
@@ -235,7 +227,7 @@ t1 = forever $ do
                 -- cluster timeout ?? maybe network error
                 inc all_network_error
                 throwError NetworkError
-              Just (nid, bool) -> do
+              Just (_nid, bool) -> do
                 -- vote true, inc all_votes
                 when bool (inc all_vote)
         )
@@ -245,9 +237,9 @@ t1 = forever $ do
             -- vote failed, need retry
             HalfVoteFailed -> undefined
             NetworkError -> undefined
+            _ -> undefined
         )
     Leader -> do
-      res <- callAll @"peer" A
       undefined
 
 r1 :: IO ()
