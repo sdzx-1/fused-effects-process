@@ -53,14 +53,14 @@ import Process.TChan (TChan, newTChanIO, writeTChan)
 import Process.Type (Elem, Elems, Some, Sum, ToList, ToSig, inject)
 import Unsafe.Coerce (unsafeCoerce)
 
-newtype NodeID = NodeID Int deriving (Show, Eq, Ord)
+newtype NodeId = NodeId Int deriving (Show, Eq, Ord)
 
 ---------------------------------------- api
 -- peerJoin
 -- peerLeave
--- callPeer :: NodeID -> Message -> m RespVal
+-- callPeer :: NodeId -> Message -> m RespVal
 -- callPeers :: Message -> m [RespVal]
--- castPeer :: NodeID -> Message -> m ()
+-- castPeer :: NodeId -> Message -> m ()
 -- castPeers :: Message -> m ()
 
 type HasPeerGroup (peerName :: Symbol) s ts sig m =
@@ -79,12 +79,12 @@ withResp (RespVal tmv) ma = do
 type PeerAction :: (Type -> Type) -> [Type] -> (Type -> Type) -> Type -> Type
 data PeerAction s ts m a where
   ------- action
-  Join :: NodeID -> TChan (Sum s ts) -> PeerAction s ts m ()
-  Leave :: NodeID -> PeerAction s ts m ()
+  Join :: NodeId -> TChan (Sum s ts) -> PeerAction s ts m ()
+  Leave :: NodeId -> PeerAction s ts m ()
   PeerSize :: PeerAction s ts m Int
   ------- messge
-  SendMessage :: (ToSig t s) => NodeID -> t -> PeerAction s ts m ()
-  SendAllCall :: (ToSig t s) => (RespVal b -> t) -> PeerAction s ts m [(NodeID, TMVar b)]
+  SendMessage :: (ToSig t s) => NodeId -> t -> PeerAction s ts m ()
+  SendAllCall :: (ToSig t s) => (RespVal b -> t) -> PeerAction s ts m [(NodeId, TMVar b)]
   SendAllCast :: (ToSig t s) => t -> PeerAction s ts m ()
   ------- chan
   GetChan :: PeerAction s ts m (TChan (Some s))
@@ -100,7 +100,7 @@ leave ::
   forall (peerName :: Symbol) s ts sig m.
   ( HasLabelled peerName (PeerAction s ts) sig m
   ) =>
-  NodeID ->
+  NodeId ->
   m ()
 leave i = sendLabelled @peerName (Leave i)
 
@@ -108,7 +108,7 @@ join ::
   forall (peerName :: Symbol) s ts sig m.
   ( HasLabelled peerName (PeerAction s ts) sig m
   ) =>
-  NodeID ->
+  NodeId ->
   TChan (Sum s ts) ->
   m ()
 join i t = sendLabelled @peerName (Join i t)
@@ -126,7 +126,7 @@ sendReq ::
     ToSig t s,
     HasLabelled peerName (PeerAction s ts) sig m
   ) =>
-  NodeID ->
+  NodeId ->
   t ->
   m ()
 sendReq i t = sendLabelled @peerName (SendMessage i t)
@@ -138,7 +138,7 @@ callById ::
     MonadIO m,
     HasLabelled (peerName :: Symbol) (PeerAction s ts) sig m
   ) =>
-  NodeID ->
+  NodeId ->
   (RespVal b -> e) ->
   m b
 callById i f = do
@@ -153,7 +153,7 @@ castById ::
     MonadIO m,
     HasLabelled (peerName :: Symbol) (PeerAction s ts) sig m
   ) =>
-  NodeID ->
+  NodeId ->
   e ->
   m ()
 castById i f = do
@@ -167,14 +167,14 @@ callAll ::
     MonadIO m
   ) =>
   (RespVal b -> t) ->
-  m [(NodeID, TMVar b)]
+  m [(NodeId, TMVar b)]
 callAll t = do
   sendLabelled @peerName (SendAllCall t)
 
 type NodeState :: (Type -> Type) -> [Type] -> Type
 data NodeState s ts = NodeState
-  { nodeId :: NodeID,
-    peers :: Map NodeID (TChan (Sum s ts)),
+  { nodeId :: NodeId,
+    peers :: Map NodeId (TChan (Sum s ts)),
     nodeChan :: TChan (Sum s ts)
   }
 
@@ -222,7 +222,7 @@ instance
       pure (unsafeCoerce nodeChan <$ ctx)
     R signa -> alg (unPeerActionC . hdl) (R signa) ctx
 
-initNodeState :: NodeID -> IO (NodeState s ts)
+initNodeState :: NodeId -> IO (NodeState s ts)
 initNodeState nid = do
   tc <- newTChanIO
   pure $ NodeState nid Map.empty tc
@@ -230,7 +230,7 @@ initNodeState nid = do
 runWithPeers ::
   forall peerName s ts m a.
   MonadIO m =>
-  NodeID ->
+  NodeId ->
   Labelled (peerName :: Symbol) (PeerActionC s ts) m a ->
   m a
 runWithPeers nid f = do

@@ -31,6 +31,7 @@ import Control.Effect.Error
 import Control.Effect.Optics
 import Control.Monad
 import Control.Monad.IO.Class
+import Data.Map (Map)
 import Optics (makeLenses)
 import Process.HasPeerGroup
 import Process.HasServer
@@ -46,16 +47,63 @@ whenM b m = do
   bool <- b
   when bool m
 
-data Vote where
-  Vote :: RespVal Bool %1 -> Vote
+data VoteExample where
+  VoteExample :: RespVal Bool %1 -> VoteExample
 
 data TC where
   A :: RespVal String %1 -> TC
 
+data Command = Command
+
+data Term = Term Int deriving (Show, Eq, Ord)
+
+type Index = Int
+
+data PersistentState = PersistentState
+  { currentTerm :: Term,
+    votedFor :: Maybe NodeId,
+    logs :: [(Term, Index, Command)]
+  }
+
+data VolatileState = VolatileState
+  { commitIndex :: Index,
+    lastApplied :: Index
+  }
+
+data LeaderVolatileState = LeaderVolatileState
+  { nextIndexs :: Map NodeId Index,
+    matchIndexs :: Map NodeId Index
+  }
+
+data Entries = Entries
+  { eterm :: Term,
+    leaderId :: NodeId,
+    preLogIndex :: Index,
+    prevLogTerm :: Term,
+    entries :: [Command],
+    leaderCommit :: Index
+  }
+
+data AppendEntries where
+  AppendEntries :: Entries -> RespVal (Term, Bool) %1 -> AppendEntries
+
+data Vote = Vote
+  { vterm :: Term,
+    candidateId :: NodeId,
+    lastLogIndex :: Index,
+    lastLogTerm :: Term
+  }
+
+data RequestVote where
+  RequestVote :: Vote -> RespVal (Term, Bool) %1 -> RequestVote
+
 mkSigAndClass
   "SigRPC"
   [ ''TC,
-    ''Vote
+    ''VoteExample,
+    -------------
+    ''AppendEntries,
+    ''RequestVote
   ]
 
 data Role = Follower | Candidate | Leader deriving (Show, Eq, Ord)
@@ -99,7 +147,7 @@ mkMetric
 t1 ::
   ( MonadIO m,
     Has (Metric Counter) sig m,
-    HasPeerGroup "peer" SigRPC '[TC, Vote] sig m,
+    HasPeerGroup "peer" SigRPC '[TC, VoteExample] sig m,
     Has (State CoreState :+: Error ProcessError) sig m
   ) =>
   m ()
@@ -125,7 +173,7 @@ t1 = forever $ do
               undefined
         )
     Candidate -> do
-      cs <- callAll @"peer" Vote
+      cs <- callAll @"peer" VoteExample
       timer <- liftIO $ newTimeout 2
       halfVote <- (`div` 2) <$> peerSize @"peer"
 
@@ -160,7 +208,7 @@ r1 :: IO ()
 r1 = do
   tr <- newTimeout 5
   void $
-    runWithPeers @"peer" (NodeID 1) $
+    runWithPeers @"peer" (NodeId 1) $
       runMetric @Counter $
         runState (CoreState Follower tr) $
           runError @ProcessError $
