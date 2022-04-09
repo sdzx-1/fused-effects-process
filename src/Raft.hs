@@ -6,7 +6,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE LinearTypes #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -56,7 +55,7 @@ data VoteExample where
 data TC where
   A :: RespVal String %1 -> TC
 
-data Term = Term Int deriving (Show, Eq, Ord)
+newtype Term = Term Int deriving (Show, Eq, Ord)
 
 type Index = Int
 
@@ -109,7 +108,7 @@ data Entries command = Entries
 
 data AppendEntries where
   AppendEntries ::
-    (Machine command state, T.Typeable (command)) =>
+    (Machine command state, T.Typeable command) =>
     Entries command ->
     RespVal (Term, Bool) %1 ->
     AppendEntries
@@ -182,7 +181,7 @@ t1 ::
     Has (State state) sig m,
     -- peer rpc, message chan
     HasPeerGroup "peer" SigRPC '[TC, VoteExample] sig m,
-    -- core state, control flow
+    -- raft core state, control flow
     Has (State CoreState :+: Error ProcessError) sig m
   ) =>
   m ()
