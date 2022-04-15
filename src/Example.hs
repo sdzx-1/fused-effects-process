@@ -21,11 +21,9 @@ import Control.Carrier.State.Strict
 import Control.Concurrent
 import Control.Concurrent.STM
 import Control.Effect.Optics
-import Control.Exception (SomeException)
 import Control.Monad
 import Control.Monad.IO.Class
 import Data.Data (Proxy (Proxy))
-import Data.IntMap (IntMap)
 import qualified Data.IntMap as IntMap
 import Data.IntSet (IntSet)
 import qualified Data.IntSet as IntSet
@@ -33,8 +31,6 @@ import qualified Data.List as L
 import qualified Data.Text as T
 import qualified Data.Text.Builder.Linear as TLinear
 import qualified Data.Text.IO as TIO
-import qualified Data.Text.Lazy.Builder as TL
-import Optics (makeLenses)
 import Process.HasServer
 import Process.HasWorkGroup
 import Process.Metric
@@ -77,7 +73,6 @@ logServer = forever $ do
                   (TLinear.runBuilder bu)
             else do
               let ln = length st
-                  ltxt = TL.fromString st
               putVal tmp_chars (chars + ln)
               linearBuilder %= (<> TLinear.fromText (T.pack st))
     SigLog2 (SetLog lv) -> checkLevelFun .= lv
@@ -124,7 +119,7 @@ eotProcess = forever $ do
       Nothing -> do
         inc all_et_nothing
         pure ()
-      Just (Result tim pid res) -> do
+      Just (Result _ pid res) -> do
         case res of
           Left _ -> inc all_et_exception
           Right _ -> inc all_et_terminate
