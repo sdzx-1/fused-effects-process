@@ -133,6 +133,7 @@ data Control
   | HalfVoteFailed
   | HalfVoteSuccess
   | NetworkError
+  | StrangeError
   deriving (Show, Eq, Ord)
 
 data CoreState = CoreState
@@ -194,7 +195,7 @@ t1 = forever $ do
                     -- update machine
                     forM_ (entries ents) $ \comm -> do
                       case T.cast comm :: Maybe command of
-                        Nothing -> error "interal error"
+                        Nothing -> throwError StrangeError
                         Just command -> modify @state (applyCommand command)
                     pure undefined
                 )
