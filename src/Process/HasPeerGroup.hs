@@ -147,7 +147,7 @@ callById i f = do
   liftIO $ atomically $ takeTMVar mvar
 
 castById ::
-  forall peerName s ts sig m e b.
+  forall peerName s ts sig m e.
   ( Elem peerName e ts,
     ToSig e s,
     MonadIO m,
@@ -195,10 +195,10 @@ instance
       put (ps {peers = Map.delete nid peers})
       pure ctx
     L PeerSize -> do
-      ps@NodeState {peers} <- get @(NodeState s ts)
+      NodeState {peers} <- get @(NodeState s ts)
       pure (Map.size peers <$ ctx)
     L (SendMessage nid t) -> do
-      ps@NodeState {peers} <- get @(NodeState s ts)
+      NodeState {peers} <- get @(NodeState s ts)
       case Map.lookup nid peers of
         Nothing -> do
           liftIO $ print $ "node id not found: " ++ show nid
@@ -207,14 +207,14 @@ instance
           liftIO $ atomically $ writeTChan tc (inject t)
           pure ctx
     L (SendAllCall t) -> do
-      ps@NodeState {peers} <- get @(NodeState s ts)
+      NodeState {peers} <- get @(NodeState s ts)
       tmvs <- forM (Map.toList peers) $ \(idx, ch) -> do
         tmv <- liftIO $ newEmptyTMVarIO
         liftIO $ atomically $ writeTChan ch (inject (t $ RespVal tmv))
         pure (idx, tmv)
       pure (tmvs <$ ctx)
     L (SendAllCast t) -> do
-      ps@NodeState {peers} <- get @(NodeState s ts)
+      NodeState {peers} <- get @(NodeState s ts)
       Map.traverseWithKey (\_ ch -> liftIO $ atomically $ writeTChan ch (inject t)) peers
       pure ctx
     L GetChan -> do

@@ -15,26 +15,23 @@ import Control.Algebra
     type (:+:),
   )
 import Control.Carrier.Reader
-  ( Has,
-    Reader,
+  ( Reader,
     ReaderC,
     ask,
     runReader,
   )
 import Control.Concurrent
-  ( MVar,
-    putMVar,
+  ( putMVar,
   )
 import Control.Concurrent.STM
   ( STM,
     atomically,
     orElse,
   )
-import Control.Monad (forever)
+import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO (..))
-import Process.HasWorkGroup (HasWorkGroup)
 import Process.TChan (TChan, newTChanIO, readTChan)
-import Process.Type (ProcessInfo (..), ProcessState (..), RespVal (..), Some (..))
+import Process.Type (RespVal (..), Some (..))
 
 type MessageChan f = Reader (TChan (Some f))
 
@@ -49,7 +46,7 @@ withResp (RespVal tmv) ma = do
 
 -- server
 withMessageChan ::
-  forall f es sig m.
+  forall f sig m.
   (Has (MessageChan f) sig m, MonadIO m) =>
   (forall s. f s %1 -> m ()) ->
   m ()
@@ -59,7 +56,7 @@ withMessageChan f = do
   f v
 
 readMessageChan ::
-  forall f es sig m.
+  forall f m.
   (MonadIO m) =>
   TChan (Some f) ->
   (forall s. f s %1 -> m ()) ->
@@ -131,6 +128,11 @@ withThreeMessageChan f1 f2 f3 = do
 
 newMessageChan :: forall f. IO (TChan (Some f))
 newMessageChan = newTChanIO
+
+whenM :: Monad m => m Bool -> m () -> m ()
+whenM b m = do
+  bool <- b
+  when bool m
 
 -- inputOutput
 --     :: forall input workName s ts sig m

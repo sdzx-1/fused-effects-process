@@ -92,7 +92,6 @@ state2info (ProcessState pc pid tid) = do
   ps <- getChanSize pc
   pure (ProcessInfo pid tid ps)
 
-
 instance Show ProcessInfo where
   show (ProcessInfo pid tid psize) =
     "Prcess info: "

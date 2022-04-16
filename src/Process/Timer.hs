@@ -4,11 +4,9 @@
 module Process.Timer where
 
 import Control.Applicative
-import Control.Concurrent (threadDelay)
 import Control.Concurrent.STM
 import qualified Control.Concurrent.STM as STM
 import Control.Exception (assert)
-import Control.Monad (forever)
 import Data.Time (DiffTime, diffTimeToPicoseconds)
 import qualified GHC.Event as GHC
   ( TimeoutKey,
@@ -111,8 +109,7 @@ fun = do
     Nothing -> do
       print "timeout, reselete leader"
       undefined
-    Just (i, val) -> do
-      let nl = filter ((/= i) . fst) tmvs
+    Just (_, _) -> do
       undefined
 
   print res

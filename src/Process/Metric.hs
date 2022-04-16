@@ -39,7 +39,6 @@ import Control.Carrier.Reader
   )
 import Control.Effect.Labelled
   ( Algebra (..),
-    Has,
     send,
     type (:+:) (..),
   )
@@ -47,11 +46,6 @@ import Control.Monad.IO.Class (MonadIO (..))
 import Data.Data (Proxy (..))
 import Data.Default.Class (Default (..))
 import Data.Kind (Type)
-import Data.Maybe
-  ( Maybe (Nothing),
-    fromJust,
-    fromMaybe,
-  )
 import qualified Data.Vector as V
 import Data.Vector.Mutable
   ( IOVector,
@@ -64,13 +58,9 @@ import qualified Data.Vector.Mutable as M
 import GHC.TypeLits
   ( KnownNat,
     Nat,
-    Symbol,
     natVal,
   )
-import Language.Haskell.TH hiding (Type)
-import Text.Read (readMaybe)
 import Prelude hiding (replicate)
-import qualified Prelude as P
 
 type K :: Nat -> Type
 data K s where
@@ -152,7 +142,7 @@ instance
       L (PutVal g v) -> do
         liftIO $ pv iov g v
         pure ctx
-      L (GetAll v) -> do
+      L (GetAll _) -> do
         v <- liftIO $ M.ifoldr' (\i a b -> (vName @v undefined V.! i, a) : b) [] iov
         pure (v <$ ctx)
       R signa -> alg (runReader iov . unMetric . hdl) signa ctx
@@ -171,4 +161,4 @@ creatVec = do
   pure (Vec def iov)
 
 runMetricWith :: forall v m a. (MonadIO m) => Vec v -> MetriC v m a -> m a
-runMetricWith (Vec v iov) f = runReader iov $ unMetric f
+runMetricWith (Vec _ iov) f = runReader iov $ unMetric f

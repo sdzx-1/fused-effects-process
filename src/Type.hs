@@ -17,13 +17,8 @@ module Type where
 import Control.Concurrent
 import Control.Concurrent.STM
 import Control.Exception (SomeException)
-import Control.Monad
-import Data.Data (Proxy (Proxy))
 import Data.IntMap (IntMap)
-import qualified Data.IntMap as IntMap
 import Data.IntSet (IntSet)
-import qualified Data.IntSet as IntSet
-import Data.Text (pack)
 import qualified Data.Text.Builder.Linear as TLinear
 import Optics (makeLenses)
 import Process.Metric
@@ -91,11 +86,6 @@ makeLenses ''LogState
 
 noCheck :: CheckLevelFun
 noCheck _ = True
-
-whenM :: Monad m => m Bool -> m () -> m ()
-whenM b m = do
-  bool <- b
-  when bool m
 
 logState :: LogState
 logState =

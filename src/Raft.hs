@@ -39,11 +39,7 @@ import Process.TChan
 import Process.TH
 import Process.Timer
 import Process.Type (Some (..), ToList, ToSig (..))
-
-whenM :: Monad m => m Bool -> m () -> m ()
-whenM b m = do
-  bool <- b
-  when bool m
+import Process.Util (whenM)
 
 data VoteExample where
   VoteExample :: RespVal Bool %1 -> VoteExample

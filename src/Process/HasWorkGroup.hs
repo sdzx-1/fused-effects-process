@@ -25,18 +25,8 @@ import Control.Algebra
     send,
     type (:+:) (..),
   )
-import Control.Carrier.Reader
-  ( Algebra,
-    Has,
-    Reader,
-    ReaderC (..),
-    ask,
-    runReader,
-  )
 import Control.Carrier.State.Strict
-  ( Algebra,
-    Has,
-    StateC (..),
+  ( StateC (..),
     evalState,
     get,
     gets,
@@ -47,7 +37,6 @@ import Control.Concurrent
     forkIO,
     killThread,
     newEmptyMVar,
-    newMVar,
     putMVar,
     takeMVar,
   )
@@ -60,22 +49,14 @@ import Control.Concurrent.STM
     writeTVar,
   )
 import Control.Effect.Labelled
-  ( Algebra (..),
-    Has,
-    HasLabelled,
+  ( HasLabelled,
     Labelled,
-    LabelledMember,
     runLabelled,
     sendLabelled,
-    type (:+:) (..),
   )
 import Control.Exception
 import Control.Monad
   ( forM,
-    forM_,
-    forever,
-    replicateM,
-    void,
   )
 import Control.Monad.IO.Class (MonadIO (..))
 import Data.IntMap (IntMap)
@@ -86,9 +67,7 @@ import Data.Traversable (for)
 import GHC.TypeLits (Symbol)
 import Process.TChan
   ( TChan,
-    getChanSize,
     newTChanIO,
-    readTChan,
     writeTChan,
   )
 import Process.Type
@@ -99,7 +78,6 @@ import Process.Type
     RespVal (..),
     Result (..),
     Some (..),
-    Sum,
     ToList,
     ToSig,
     inject,
@@ -156,7 +134,7 @@ sendAllCall ::
 sendAllCall t = sendLabelled @serverName (SendAllCall t)
 
 sendAllCast ::
-  forall (serverName :: Symbol) s ts sig m t b.
+  forall (serverName :: Symbol) s ts sig m t.
   ( Elem serverName t ts,
     ToSig t s,
     HasLabelled serverName (Request s ts) sig m
@@ -193,7 +171,7 @@ instance Show Reset where
 
 -- | send works to it workers
 sendWorks ::
-  forall serverName s ts sig m e b.
+  forall serverName s ts sig m e.
   ( Elem serverName e ts,
     ToSig e s,
     MonadIO m,
@@ -257,11 +235,11 @@ mcall ::
 mcall is f = do
   for is $ \idx -> do
     mvar <- liftIO newEmptyMVar
-    v <- sendReq @serverName idx (f mvar)
+    _ <- sendReq @serverName idx (f mvar)
     liftIO $ takeMVar mvar
 
 castById ::
-  forall serverName s ts sig m e b.
+  forall serverName s ts sig m e.
   ( Elem serverName e ts,
     ToSig e s,
     MonadIO m,
@@ -274,7 +252,7 @@ castById i f = do
   sendReq @serverName i f
 
 castAll ::
-  forall (serverName :: Symbol) s ts sig m t b.
+  forall (serverName :: Symbol) s ts sig m t.
   ( Elem serverName t ts,
     ToSig t s,
     HasLabelled serverName (Request s ts) sig m,
@@ -285,7 +263,7 @@ castAll ::
 castAll t = sendLabelled @serverName (SendAllCast t)
 
 mcast ::
-  forall serverName s ts sig m e b.
+  forall serverName s ts sig m e.
   ( Elem serverName e ts,
     ToSig e s,
     HasLabelled serverName (Request s ts) sig m,
@@ -297,30 +275,30 @@ mcast ::
 mcast is f = mapM_ (\x -> castById @serverName x f) is
 
 createWorker ::
-  forall s sig m a.
+  forall s sig m.
   (MonadIO m, Has (Manager s) sig m) =>
   (Int -> TChan (Some s) -> IO ()) ->
   m ()
 createWorker fun = send (CreateWorker fun)
 
 deleteChan ::
-  forall s sig m a. (MonadIO m, Has (Manager s) sig m) => Int -> m ()
+  forall s sig m. (MonadIO m, Has (Manager s) sig m) => Int -> m ()
 deleteChan i = send (DeleteChannel @s i)
 
 clearTVar ::
-  forall s sig m a. (MonadIO m, Has (Manager s) sig m) => Int -> m ()
+  forall s sig m. (MonadIO m, Has (Manager s) sig m) => Int -> m ()
 clearTVar i = send (ClearTVar @s i)
 
 killWorker ::
-  forall s sig m a. (MonadIO m, Has (Manager s) sig m) => Int -> m ()
+  forall s sig m. (MonadIO m, Has (Manager s) sig m) => Int -> m ()
 killWorker i = send (KillWorker @s i)
 
 getAllWorker ::
-  forall s sig m a. (MonadIO m, Has (Manager s) sig m) => m [Int]
+  forall s sig m. (MonadIO m, Has (Manager s) sig m) => m [Int]
 getAllWorker = send (GetAllWorker @s)
 
 getAllInfo ::
-  forall s sig m a. (MonadIO m, Has (Manager s) sig m) => m [ProcessInfo]
+  forall s sig m. (MonadIO m, Has (Manager s) sig m) => m [ProcessInfo]
 getAllInfo = send (GetAllInfo @s)
 
 data WorkGroupState s ts = WorkGroupState
@@ -385,14 +363,14 @@ instance (Algebra sig m, MonadIO m) => Algebra (Request s ts :+: Manager s :+: s
 
     -- delete work chann
     R ((L (DeleteChannel i))) -> do
-      state@WorkGroupState {workMap, counter, terminateMap} <-
+      state@WorkGroupState {workMap} <-
         get @(WorkGroupState s ts)
       put state {workMap = IntMap.delete i workMap}
       pure ctx
 
     -- remove tvar where id is i
     R (L (ClearTVar i)) -> do
-      state@WorkGroupState {terminateMap} <-
+      WorkGroupState {terminateMap} <-
         get @(WorkGroupState s ts)
       liftIO $
         atomically $

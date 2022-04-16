@@ -18,46 +18,30 @@ module Process.HasServer where
 
 import Control.Carrier.Error.Either
   ( Algebra,
-    Has,
   )
 import Control.Carrier.Reader
-  ( Algebra,
-    Has,
-    Reader,
-    ReaderC (..),
-    ask,
+  ( ReaderC (..),
     runReader,
   )
 import Control.Concurrent
-  ( MVar,
-    newEmptyMVar,
+  ( newEmptyMVar,
     takeMVar,
   )
-import Control.Concurrent.MVar (putMVar)
 import Control.Concurrent.STM (atomically)
 import Control.Effect.Labelled
   ( Algebra (..),
-    Has,
     HasLabelled,
     Labelled,
     runLabelled,
     sendLabelled,
     type (:+:) (..),
   )
-import Control.Monad (forever)
 import Control.Monad.IO.Class (MonadIO (..))
 import Data.Kind
-  ( Constraint,
-    Type,
+  ( Type,
   )
 import GHC.TypeLits
-  ( ErrorMessage
-      ( ShowType,
-        Text,
-        (:<>:)
-      ),
-    Symbol,
-    TypeError,
+  ( Symbol,
   )
 import Process.TChan
 import Process.Type
@@ -127,7 +111,7 @@ timeoutCall tot f = do
   liftIO $ timeout tot $ takeMVar mvar
 
 cast ::
-  forall serverName s ts sig m e b.
+  forall serverName s ts sig m e.
   ( Elem serverName e ts,
     ToSig e s,
     MonadIO m,
