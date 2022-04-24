@@ -28,10 +28,11 @@ library
                     , Process.Util
                     , Process.TChan
                     , Process.Timer
-                    , Type
-                    , Example
-                    , MetricServer
-                    , Raft
+                    , Example.Type
+                    , Example.Server
+                    , Example.Metric
+                    , Raft.Type
+                    , Raft.Server
 
     -- Modules included in this library but not exported.
     -- other-modules:

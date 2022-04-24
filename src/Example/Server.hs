@@ -12,17 +12,30 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Example where
+module Example.Server where
 
-import Control.Algebra
-import Control.Carrier.Error.Either
-import Control.Carrier.Reader
+import Control.Algebra (Has, type (:+:))
+import Control.Carrier.Error.Either (Error, runError, throwError)
+import Control.Carrier.Reader (Reader, ask, asks, runReader)
 import Control.Carrier.State.Strict
+  ( State,
+    get,
+    modify,
+    runState,
+  )
 import Control.Concurrent
-import Control.Concurrent.STM
-import Control.Effect.Optics
-import Control.Monad
-import Control.Monad.IO.Class
+  ( MVar,
+    forkIO,
+    newEmptyMVar,
+    putMVar,
+    takeMVar,
+    threadDelay,
+    tryTakeMVar,
+  )
+import Control.Concurrent.STM (newTVarIO, readTVarIO)
+import Control.Effect.Optics (use, (%=), (.=))
+import Control.Monad (forM_, forever, replicateM_, void, when)
+import Control.Monad.IO.Class (MonadIO (..))
 import Data.Data (Proxy (Proxy))
 import qualified Data.IntMap as IntMap
 import Data.IntSet (IntSet)
@@ -31,13 +44,43 @@ import qualified Data.List as L
 import qualified Data.Text as T
 import qualified Data.Text.Builder.Linear as TLinear
 import qualified Data.Text.IO as TIO
-import Process.HasServer
+import Example.Metric
+import Example.Type
+import Process.HasServer (HasServer, call, cast, runWithServer)
 import Process.HasWorkGroup
+  ( HasWorkGroup,
+    castAll,
+    castById,
+    clearTVar,
+    createWorker,
+    deleteChan,
+    getAllInfo,
+    killWorker,
+    runWithWorkGroup',
+    sendAllCall,
+    sendWorks,
+    timeoutCallAll,
+  )
 import Process.Metric
-import Process.Type
+  ( Metric,
+    getAll,
+    getVal,
+    inc,
+    putVal,
+    runMetric,
+  )
+import Process.Type (Result (Result))
 import Process.Util
+  ( MessageChan,
+    newMessageChan,
+    runServerWithChan,
+    runWorkerWithChan,
+    whenM,
+    withMessageChan,
+    withResp,
+    withThreeMessageChan,
+  )
 import Text.Read (readMaybe)
-import Type
 
 -------------------------------------log server
 logServer ::

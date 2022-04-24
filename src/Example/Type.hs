@@ -12,18 +12,23 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Type where
+module Example.Type where
 
-import Control.Concurrent
-import Control.Concurrent.STM
+import Control.Concurrent (MVar)
+import Control.Concurrent.STM (TVar)
 import Control.Exception (SomeException)
 import Data.IntMap (IntMap)
 import Data.IntSet (IntSet)
 import qualified Data.Text.Builder.Linear as TLinear
 import Optics (makeLenses)
-import Process.Metric
-import Process.TH
+import Process.TH (mkSigAndClass)
 import Process.Type
+  ( ProcessInfo,
+    RespVal,
+    Result,
+    ToList,
+    ToSig (..),
+  )
 
 data Stop where
   Stop :: Stop
@@ -59,20 +64,6 @@ data LogType = LogFile | LogPrint
 data Switch where
   Switch :: LogType -> RespVal () %1 -> Switch
 
-mkSigAndClass
-  "SigLog"
-  [ ''Log,
-    ''SetLog,
-    ''Switch,
-    ''Stop
-  ]
-
-mkMetric
-  "Lines"
-  [ "all_lines",
-    "tmp_chars"
-  ]
-
 data LogState = LogState
   { _checkLevelFun :: CheckLevelFun,
     _linearBuilder :: TLinear.Builder,
@@ -98,19 +89,19 @@ logState =
       _printOut = True
     }
 
+mkSigAndClass
+  "SigLog"
+  [ ''Log,
+    ''SetLog,
+    ''Switch,
+    ''Stop
+  ]
+
 -------------------------------------eot server
 data ProcessR where
   ProcessR :: Int -> (Either SomeException ()) -> ProcessR
 
 mkSigAndClass "SigException" [''ProcessR]
-
-mkMetric
-  "ETmetric"
-  [ "all_et_exception",
-    "all_et_terminate",
-    "all_et_nothing",
-    "all_et_cycle"
-  ]
 
 data EotConfig = EotConfig
   { einterval :: Int,
@@ -130,13 +121,6 @@ mkSigAndClass
   "SigTimeoutCheck"
   [ ''StartTimoutCheck,
     ''ProcessTimeout
-  ]
-
-mkMetric
-  "PTmetric"
-  [ "all_pt_cycle",
-    "all_pt_timeout",
-    "all_pt_tcf"
   ]
 
 newtype PtConfig = PtConfig
@@ -195,15 +179,6 @@ mkSigAndClass
     ''StopAll,
     ''ToSet,
     ''GetProcessInfo
-  ]
-
-mkMetric
-  "Wmetric"
-  [ "all_fork_work",
-    "all_exception",
-    "all_timeout",
-    "all_start_timeout_check",
-    "all_create"
   ]
 
 -------------------------------------Manager - Work, Work
