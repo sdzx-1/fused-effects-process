@@ -22,6 +22,7 @@ module Process.Metric
     getAll,
     runMetric,
     runMetricWith,
+    showMetric,
     creatVec,
     Vec (..),
     K (..),
@@ -162,3 +163,8 @@ creatVec = do
 
 runMetricWith :: forall v m a. (MonadIO m) => Vec v -> MetriC v m a -> m a
 runMetricWith (Vec _ iov) f = runReader iov $ unMetric f
+
+showMetric :: [(String, Int)] -> String
+showMetric [] = []
+showMetric ((name, val) : xs) =
+  name ++ ": " ++ show val ++ "\n" ++ showMetric xs

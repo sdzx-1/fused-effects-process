@@ -68,6 +68,7 @@ import Process.Metric
     inc,
     putVal,
     runMetric,
+    showMetric,
   )
 import Process.Type (Result (Result))
 import Process.Util
@@ -101,7 +102,11 @@ logServer = forever $ do
       when (lvCheck lv) $ do
         inc all_lines
         li <- show <$> getVal all_lines
-        whenM (use printOut) $ liftIO $ putStr (logFun li lv st)
+        whenM (use printOut) $ do
+          logCount <- getAll @Lines Proxy
+          liftIO $ do
+            putStrLn $ showMetric logCount
+            putStrLn (logFun li lv st)
         whenM (use useLogFile) $ do
           chars <- getVal tmp_chars
           batch <- use batchSize
@@ -169,7 +174,7 @@ eotProcess = forever $ do
         cast @"et" (ProcessR pid res)
   interval <- asks einterval
   allMetrics <- getAll @ETmetric Proxy
-  cast @"log" $ LW (show allMetrics)
+  cast @"log" $ LW (showMetric allMetrics)
   liftIO $ threadDelay interval
 
 -------------------------------------process timeout checker
@@ -187,7 +192,7 @@ ptcProcess ::
   m ()
 ptcProcess = forever $ do
   allMetrics <- getAll @PTmetric Proxy
-  cast @"log" $ LW $ show allMetrics
+  cast @"log" $ LW $ showMetric allMetrics
   inc all_pt_cycle
   res <- call @"ptc" StartTimoutCheck
   tim <- asks ptctimeout
@@ -273,7 +278,7 @@ mProcess = forever $ do
             rsp
             ( do
                 allM <- getAll @Wmetric Proxy
-                cast @"log" $ LE $ show allM
+                cast @"log" $ LE $ showMetric allM
                 timeoutCallAll @"w" 1_000_000 Info
             )
         SigCreate3 (StopProcess i) -> do
