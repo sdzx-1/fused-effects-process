@@ -169,6 +169,9 @@ data ToSet where
 data GetProcessInfo where
   GetProcessInfo :: RespVal [ProcessInfo] %1 -> GetProcessInfo
 
+data LogStatus where
+  LogStatus :: LogStatus
+
 mkSigAndClass
   "SigCreate"
   [ ''Create,
@@ -178,7 +181,8 @@ mkSigAndClass
     ''Fwork,
     ''StopAll,
     ''ToSet,
-    ''GetProcessInfo
+    ''GetProcessInfo,
+    ''LogStatus
   ]
 
 -------------------------------------Manager - Work, Work

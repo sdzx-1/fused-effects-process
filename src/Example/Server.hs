@@ -148,4 +148,7 @@ server = forever $ do
           withResp rsp get
         SigCreate8 (GetProcessInfo rsp) ->
           withResp rsp (getAllInfo @SigCommand)
+        SigCreate9 LogStatus -> do
+          allM <- getAll @Wmetric Proxy
+          cast @"log" $ LD $ showMetric allM
     )

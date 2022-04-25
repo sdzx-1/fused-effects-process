@@ -97,4 +97,5 @@ runmProcess = do
         runReader ftmvar $
           runWithServer @"s" sc client
 
+  forkIO $ void $ runWithServer @"s" sc ls
   takeMVar ftmvar

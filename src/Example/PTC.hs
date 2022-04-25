@@ -60,4 +60,3 @@ ptcProcess = forever $ do
         cast @"ptc" (ProcessTimeout pid)
       Just TimeoutCheckFinish -> do
         inc all_pt_tcf
-        pure ()

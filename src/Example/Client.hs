@@ -84,3 +84,12 @@ client = forever $ do
           case res of
             Nothing -> cast @"log" $ LE "timeout: call process to all work check timeout"
             Just x0 -> cast @"log" $ LD $ "all info: " ++ show x0
+
+ls ::
+  ( HasServer "s" SigCreate '[LogStatus] sig m,
+    MonadIO m
+  ) =>
+  m ()
+ls = forever $ do
+  cast @"s" LogStatus
+  liftIO $ threadDelay 1_000_000
