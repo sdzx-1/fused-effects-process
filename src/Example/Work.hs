@@ -43,8 +43,8 @@ mWork ::
 mWork = forever $ do
   withMessageChan @SigCommand $ \case
     SigCommand1 Stop -> do
-      pid <- asks workPid
-      cast @"log" $ LW $ "terminate process: " ++ show pid
+      -- pid <- asks workPid
+      -- cast @"log" $ LW $ "terminate process: " ++ show pid
       throwError TerminateProcess
     SigCommand2 (Info rsp) ->
       withResp
@@ -57,12 +57,12 @@ mWork = forever $ do
       withResp
         rsp
         ( do
-            pid <- asks workPid
-            cast @"log" $
-              LW $
-                "process "
-                  ++ show pid
-                  ++ " response timoue check"
+            -- pid <- asks workPid
+            -- cast @"log" $
+            --   LW $
+            --     "process "
+            --       ++ show pid
+            --       ++ " response timoue check"
             pure TimeoutCheckFinish
         )
     SigCommand4 (ProcessWork work rsp) -> do
