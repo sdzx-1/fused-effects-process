@@ -59,14 +59,9 @@ import Process.Util
 
 -------------------------------------log server
 logServer ::
-  ( Has
-      ( MessageChan SigLog
-          :+: Metric Lines
-          :+: State LogState
-      )
-      sig
-      m,
-    MonadIO m
+  ( MonadIO m,
+    Has (MessageChan SigLog) sig m,
+    Has (Metric Lines :+: State LogState) sig m
   ) =>
   m ()
 logServer = forever $ do

@@ -60,28 +60,11 @@ import Process.Util
 -------------------------------------Manager - Work, Manager
 
 server ::
-  ( HasServer "log" SigLog '[Log] sig m,
-    Has
-      ( MessageChan SigTimeoutCheck
-          :+: MessageChan SigException
-          :+: MessageChan SigCreate
-          :+: MessageChan SigLog
-          :+: State IntSet
-          :+: Metric Wmetric
-      )
-      sig
-      m,
-    HasWorkGroup
-      "w"
-      SigCommand
-      '[ Stop,
-         Info,
-         ProcessStartTimeoutCheck,
-         ProcessWork
-       ]
-      sig
-      m,
-    MonadIO m
+  ( MonadIO m,
+    HasServer "log" SigLog '[Log] sig m,
+    Has (MessageChan SigLog :+: State IntSet :+: Metric Wmetric) sig m,
+    HasWorkGroup "w" SigCommand '[Stop, Info, ProcessStartTimeoutCheck, ProcessWork] sig m,
+    Has (MessageChan SigTimeoutCheck :+: MessageChan SigException :+: MessageChan SigCreate) sig m
   ) =>
   m ()
 server = forever $ do

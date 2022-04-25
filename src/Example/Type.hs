@@ -61,6 +61,8 @@ data SetLog where
 
 data LogType = LogFile | LogPrint
 
+-- | enable log type
+--  file or console
 data Switch where
   Switch :: LogType -> RespVal () %1 -> Switch
 

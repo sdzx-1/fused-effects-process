@@ -41,16 +41,10 @@ import Process.Type (Result (Result))
 
 -------------------------------------eot server
 eotProcess ::
-  ( HasServer "et" SigException '[ProcessR] sig m,
+  ( MonadIO m,
     HasServer "log" SigLog '[Log] sig m,
-    Has
-      ( Reader EotConfig
-          :+: State Int
-          :+: Metric ETmetric
-      )
-      sig
-      m,
-    MonadIO m
+    HasServer "et" SigException '[ProcessR] sig m,
+    Has (Reader EotConfig :+: State Int :+: Metric ETmetric) sig m
   ) =>
   m ()
 eotProcess = forever $ do

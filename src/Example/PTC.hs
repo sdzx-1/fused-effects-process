@@ -35,15 +35,10 @@ import Process.Metric
 
 -------------------------------------process timeout checker
 ptcProcess ::
-  ( HasServer "log" SigLog '[Log] sig m,
-    HasServer
-      "ptc"
-      SigTimeoutCheck
-      '[StartTimoutCheck, ProcessTimeout]
-      sig
-      m,
+  ( MonadIO m,
+    HasServer "log" SigLog '[Log] sig m,
     Has (Reader PtConfig :+: Metric PTmetric) sig m,
-    MonadIO m
+    HasServer "ptc" SigTimeoutCheck '[StartTimoutCheck, ProcessTimeout] sig m
   ) =>
   m ()
 ptcProcess = forever $ do

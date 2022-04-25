@@ -30,23 +30,10 @@ import Text.Read (readMaybe)
 
 ------------------------ create client
 client ::
-  ( HasServer "log" SigLog '[Log, SetLog, Switch] sig m,
-    HasServer
-      "s"
-      SigCreate
-      '[ Create,
-         GetInfo,
-         StopProcess,
-         KillProcess,
-         Fwork,
-         StopAll,
-         ToSet,
-         GetProcessInfo
-       ]
-      sig
-      m,
+  ( MonadIO m,
     Has (Reader (MVar ())) sig m,
-    MonadIO m
+    HasServer "log" SigLog '[Log, SetLog, Switch] sig m,
+    HasServer "s" SigCreate '[Create, GetInfo, StopProcess, KillProcess, Fwork, StopAll, ToSet, GetProcessInfo] sig m
   ) =>
   m ()
 client = forever $ do

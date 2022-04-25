@@ -29,15 +29,10 @@ import Process.Util
 
 -------------------------------------Manager - Work, Work
 mWork ::
-  ( HasServer "log" SigLog '[Log] sig m,
-    Has
-      ( MessageChan SigCommand
-          :+: Reader WorkInfo
-          :+: Error TerminateProcess
-      )
-      sig
-      m,
-    MonadIO m
+  ( MonadIO m,
+    Has (MessageChan SigCommand) sig m,
+    HasServer "log" SigLog '[Log] sig m,
+    Has (Reader WorkInfo :+: Error TerminateProcess) sig m
   ) =>
   m ()
 mWork = forever $ do
