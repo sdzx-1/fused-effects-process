@@ -52,17 +52,19 @@ import Process.Metric (Metric, inc, putVal, runMetric)
 import Process.TChan (TChan, readTChan)
 import Process.Timer (Timeout, newTimeout, waitTimeout)
 import Process.Type (Some (..))
+import Raft.Metric
 import Raft.Type
   ( AppendEntries (AppendEntries),
     Control (StrangeError, TimeoutError),
     CoreState (CoreState),
-    Counter (all_cycle, all_leader_timeout, all_vote),
     Entries (entries),
     Machine (..),
     MapCommand,
     RequestVote (RequestVote),
     Role (Candidate, Follower, Leader),
     SigRPC (..),
+    initPersistentState,
+    initVolatileState,
     nodeRole,
     timeout,
   )
@@ -90,16 +92,16 @@ t1 ::
     Machine command state,
     Has (State state) sig m,
     -- peer rpc, message chan
-    HasPeerGroup "peer" SigRPC '[] sig m,
+    HasPeerGroup "peer" SigRPC '[AppendEntries, RequestVote] sig m,
     -- raft core state, control flow
-    Has (State CoreState :+: Error Control) sig m
+    Has (State (CoreState command) :+: Error Control) sig m
   ) =>
   m ()
 t1 = forever $ do
   inc all_cycle
-  use nodeRole >>= \case
+  use @(CoreState command) nodeRole >>= \case
     Follower -> do
-      (tc, timer) <- (,) <$> getChan @"peer" <*> use timeout
+      (tc, timer) <- (,) <$> getChan @"peer" <*> use @(CoreState command) timeout
       catchError @Control
         ( readMessageChanWithTimeout timer tc \case
             SigRPC1 (AppendEntries ents rsp) -> do
@@ -120,7 +122,7 @@ t1 = forever $ do
               inc all_leader_timeout
               -- timeout, need new leader select
               -- change role to Candidate
-              nodeRole .= Candidate
+              (.=) @(CoreState command) nodeRole Candidate
               undefined
             _ -> undefined
         )
@@ -161,7 +163,14 @@ r1 = do
   void $
     runWithPeers @"peer" (NodeId 1) $
       runMetric @Counter $
-        runState (CoreState Follower tr) $
-          runState @(Map Int Int) Map.empty $
+        runState @(CoreState MapCommand)
+          ( CoreState
+              Follower
+              tr
+              initPersistentState
+              initVolatileState
+              Nothing
+          )
+          $ runState @(Map Int Int) Map.empty $
             runError @Control $
               t1 @MapCommand @(Map Int Int)

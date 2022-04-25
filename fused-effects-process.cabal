@@ -33,6 +33,7 @@ library
                     , Example.Metric
                     , Raft.Type
                     , Raft.Server
+                    , Raft.Metric
 
     -- Modules included in this library but not exported.
     -- other-modules:

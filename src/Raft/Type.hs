@@ -26,19 +26,13 @@ import qualified Data.Map as Map
 import qualified Data.Typeable as T
 import Optics (makeLenses)
 import Process.HasPeerGroup (NodeId, RespVal)
-import Process.Metric
-  ( Default (..),
-    K (..),
-    NameVector (..),
-    Vlength (..),
-  )
-import Process.TH (fromList, mkMetric, mkSigAndClass)
+import Process.TH
 import Process.Timer (Timeout)
 import Process.Type (ToList, ToSig (..))
 
-newtype Term = Term Int deriving (Show, Eq, Ord)
+newtype Term = Term Int deriving (Show, Eq, Ord, Num)
 
-type Index = Int
+newtype Index = Index Int deriving (Show, Eq, Ord, Num)
 
 -- machine class
 
@@ -67,16 +61,38 @@ data PersistentState command = PersistentState
     votedFor :: Maybe NodeId,
     logs :: [(Term, Index, command)]
   }
+  deriving (Show)
+
+initPersistentState =
+  PersistentState
+    { currentTerm = 0,
+      votedFor = Nothing,
+      logs = []
+    }
 
 data VolatileState = VolatileState
   { commitIndex :: Index,
     lastApplied :: Index
   }
+  deriving (Show)
+
+initVolatileState =
+  VolatileState
+    { commitIndex = 0,
+      lastApplied = 0
+    }
 
 data LeaderVolatileState = LeaderVolatileState
   { nextIndexs :: Map NodeId Index,
     matchIndexs :: Map NodeId Index
   }
+  deriving (Show)
+
+initLeaderVolatileState =
+  LeaderVolatileState
+    { nextIndexs = Map.empty,
+      matchIndexs = Map.empty
+    }
 
 data Entries command = Entries
   { eterm :: Term,
@@ -86,6 +102,7 @@ data Entries command = Entries
     entries :: [command],
     leaderCommit :: Index
   }
+  deriving (Show)
 
 data AppendEntries where
   AppendEntries ::
@@ -126,18 +143,13 @@ data Control
   | StrangeError
   deriving (Show, Eq, Ord)
 
-data CoreState = CoreState
+data CoreState command = CoreState
   { _nodeRole :: Role,
-    _timeout :: Timeout
+    _timeout :: Timeout,
+    _persistent :: PersistentState command,
+    _volatile :: VolatileState,
+    _leaderVolatile :: Maybe LeaderVolatileState
   }
   deriving (Show)
 
 makeLenses ''CoreState
-
-mkMetric
-  "Counter"
-  [ "all_cycle",
-    "all_leader_timeout",
-    "all_vote",
-    "all_network_error"
-  ]
