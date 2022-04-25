@@ -1,6 +1,6 @@
 module Main where
 
-import Example.Server (runmProcess)
+import Example.R (runmProcess)
 
 main :: IO ()
 main = runmProcess

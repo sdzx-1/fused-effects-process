@@ -31,6 +31,12 @@ library
                     , Example.Type
                     , Example.Server
                     , Example.Metric
+                    , Example.Log
+                    , Example.Client
+                    , Example.EOT
+                    , Example.PTC
+                    , Example.Work
+                    , Example.R
                     , Raft.Type
                     , Raft.Server
                     , Raft.Metric
