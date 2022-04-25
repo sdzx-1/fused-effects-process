@@ -52,9 +52,9 @@ type CheckLevelFun = Level -> Bool
 
 logFun :: String -> Level -> String -> String
 logFun vli lv st = concat $ case lv of
-  Debug -> [vli ++ "😀: " ++ st ++ "\n"]
-  Warn -> [vli ++ "👿: " ++ st ++ "\n"]
-  Error -> [vli ++ "☠️: " ++ st ++ "\n"]
+  Debug -> [vli ++ "😀: \n" ++ st ++ "\n"]
+  Warn -> [vli ++ "👿: \n" ++ st ++ "\n"]
+  Error -> [vli ++ "☠️: \n" ++ st ++ "\n"]
 
 data SetLog where
   SetLog :: CheckLevelFun -> SetLog
