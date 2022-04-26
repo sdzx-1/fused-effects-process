@@ -5,15 +5,12 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE LinearTypes #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StandaloneKindSignatures #-}
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
@@ -156,8 +153,7 @@ castById ::
   NodeId ->
   e ->
   m ()
-castById i f = do
-  sendReq @peerName i f
+castById i f = sendReq @peerName i f
 
 callAll ::
   forall (peerName :: Symbol) s ts sig m t b.
@@ -168,8 +164,7 @@ callAll ::
   ) =>
   (RespVal b -> t) ->
   m [(NodeId, TMVar b)]
-callAll t = do
-  sendLabelled @peerName (SendAllCall t)
+callAll t = sendLabelled @peerName (SendAllCall t)
 
 type NodeState :: (Type -> Type) -> [Type] -> Type
 data NodeState s ts = NodeState
@@ -209,7 +204,7 @@ instance
     L (SendAllCall t) -> do
       NodeState {peers} <- get @(NodeState s ts)
       tmvs <- forM (Map.toList peers) $ \(idx, ch) -> do
-        tmv <- liftIO $ newEmptyTMVarIO
+        tmv <- liftIO newEmptyTMVarIO
         liftIO $ atomically $ writeTChan ch (inject (t $ RespVal tmv))
         pure (idx, tmv)
       pure (tmvs <$ ctx)
@@ -224,8 +219,7 @@ instance
 
 initNodeState :: NodeId -> IO (NodeState s ts)
 initNodeState nid = do
-  tc <- newTChanIO
-  pure $ NodeState nid Map.empty tc
+  NodeState nid Map.empty <$> newTChanIO
 
 runWithPeers ::
   forall peerName s ts m a.
@@ -244,5 +238,4 @@ runWithPeers' ::
   NodeState s ts ->
   Labelled (peerName :: Symbol) (PeerActionC s ts) m a ->
   m a
-runWithPeers' ns f = do
-  evalState ns $ unPeerActionC $ runLabelled f
+runWithPeers' ns f = evalState ns $ unPeerActionC $ runLabelled f

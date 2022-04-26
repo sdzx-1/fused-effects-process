@@ -1,16 +1,12 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE LinearTypes #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE TypeOperators #-}
 
 module Example.Client where
 
@@ -56,10 +52,8 @@ client = forever $ do
     "le" -> cast @"log" $ SetLog (== Error)
     _ -> do
       case readMaybe @Int val of
-        Just 0 -> do
-          cast @"s" StopAll
-        Just 5 -> do
-          cast @"s" $ Fwork [print 1, print 2, print 3]
+        Just 0 -> cast @"s" StopAll
+        Just 5 -> cast @"s" $ Fwork [print 1, print 2, print 3]
         Just n -> do
           cast @"log" $ LD $ "input value is: " ++ show n
           -- cast @"s" $ StopProcess n

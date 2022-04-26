@@ -5,15 +5,11 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE LinearTypes #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE StandaloneKindSignatures #-}
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
@@ -77,7 +73,7 @@ readMessageChanWithTimeout ::
   (forall s. f s %1 -> m ()) ->
   m ()
 readMessageChanWithTimeout to tc f = do
-  v <- liftIO $ atomically $ waitTimeout to <|> (Just <$> readTChan tc)
+  v <- liftIO $ atomically $ waitTimeout to <|> Just <$> readTChan tc
   case v of
     Nothing -> throwError TimeoutError
     Just (Some val) -> f val
@@ -154,8 +150,7 @@ t1 = forever $ do
     --       NetworkError -> undefined
     --       _ -> undefined
     --   )
-    Leader -> do
-      undefined
+    Leader -> undefined
 
 r1 :: IO ()
 r1 = do

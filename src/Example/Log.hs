@@ -4,10 +4,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE LinearTypes #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
@@ -64,7 +61,7 @@ logServer ::
     Has (Metric Lines :+: State LogState) sig m
   ) =>
   m ()
-logServer = forever $ do
+logServer = forever $
   withMessageChan @SigLog $ \case
     SigLog1 (Log lv st) -> do
       lvCheck <- use checkLevelFun

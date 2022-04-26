@@ -4,10 +4,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE LinearTypes #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
@@ -20,7 +17,7 @@ import Control.Carrier.Reader (Reader, asks)
 import Control.Monad (forever)
 import Control.Monad.IO.Class (MonadIO (..))
 import Example.Type
-import Process.HasServer (HasServer, cast)
+import Process.HasServer (HasServer)
 import Process.Util
   ( MessageChan,
     withMessageChan,
@@ -35,7 +32,7 @@ mWork ::
     Has (Reader WorkInfo :+: Error TerminateProcess) sig m
   ) =>
   m ()
-mWork = forever $ do
+mWork = forever $
   withMessageChan @SigCommand $ \case
     SigCommand1 Stop -> do
       -- pid <- asks workPid

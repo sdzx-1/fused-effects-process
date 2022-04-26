@@ -4,10 +4,6 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE LinearTypes #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE NumericUnderscores #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
@@ -48,7 +44,7 @@ ptcProcess = forever $ do
   res <- call @"ptc" StartTimoutCheck
   tim <- asks ptctimeout
   liftIO $ threadDelay tim
-  forM_ res $ \(pid, tmv) -> do
+  forM_ res $ \(pid, tmv) ->
     liftIO (tryTakeMVar tmv) >>= \case
       Nothing -> do
         inc all_pt_timeout

@@ -4,10 +4,6 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE LinearTypes #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE NumericUnderscores #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
@@ -51,7 +47,7 @@ eotProcess = forever $ do
   inc all_et_cycle
   tvar <- asks etMap
   tmap <- liftIO $ readTVarIO tvar
-  flip IntMap.traverseWithKey tmap $ \_ tv -> do
+  flip IntMap.traverseWithKey tmap $ \_ tv ->
     liftIO (tryTakeMVar tv) >>= \case
       Nothing -> do
         inc all_et_nothing
