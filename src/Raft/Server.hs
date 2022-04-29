@@ -40,6 +40,7 @@ import qualified Data.Typeable as T
 import Process.HasPeerGroup
   ( HasPeerGroup,
     NodeId (NodeId),
+    callAll,
     getChan,
     runWithPeers,
     withResp,
@@ -53,12 +54,13 @@ import Raft.Type
   ( AppendEntries (AppendEntries),
     Control (StrangeError, TimeoutError),
     CoreState (CoreState),
-    Entries (entries),
+    Entries (..),
     Machine (..),
     MapCommand,
     RequestVote (RequestVote),
     Role (Candidate, Follower, Leader),
     SigRPC (..),
+    Vote (..),
     initPersistentState,
     initVolatileState,
     nodeRole,
@@ -81,16 +83,12 @@ readMessageChanWithTimeout to tc f = do
 t1 ::
   forall command state sig m.
   ( MonadIO m,
-    -- metric
-    Has (Metric Counter) sig m,
-    -- machine
+    Has (Metric Counter) sig m, -- metric
     T.Typeable command,
-    Machine command state,
+    Machine command state, -- machine
     Has (State state) sig m,
-    -- peer rpc, message chan
-    HasPeerGroup "peer" SigRPC '[AppendEntries, RequestVote] sig m,
-    -- raft core state, control flow
-    Has (State (CoreState command) :+: Error Control) sig m
+    HasPeerGroup "peer" SigRPC '[AppendEntries, RequestVote] sig m, -- peer rpc, message chan
+    Has (State (CoreState command) :+: Error Control) sig m -- raft core state, control flow
   ) =>
   m ()
 t1 = forever $ do
@@ -123,6 +121,14 @@ t1 = forever $ do
             _ -> undefined
         )
     Candidate -> do
+      callAll @"peer" $
+        RequestVote $
+          Vote
+            { vterm = 0,
+              candidateId = NodeId 1,
+              lastLogIndex = 0,
+              lastLogTerm = 0
+            }
       -- timer <- liftIO $ newTimeout 2
       -- halfVote <- (`div` 2) <$> peerSize @"peer"
 
@@ -150,7 +156,19 @@ t1 = forever $ do
     --       NetworkError -> undefined
     --       _ -> undefined
     --   )
-    Leader -> undefined
+    Leader -> do
+      callAll @"peer" $
+        AppendEntries @command @state $
+          Entries
+            { eterm = 0,
+              leaderId = NodeId 1,
+              preLogIndex = 0,
+              prevLogTerm = 0,
+              entries = [],
+              leaderCommit = 0
+            }
+
+      undefined
 
 r1 :: IO ()
 r1 = do
