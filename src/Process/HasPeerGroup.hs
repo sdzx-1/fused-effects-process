@@ -153,7 +153,7 @@ castById ::
   NodeId ->
   e ->
   m ()
-castById i f = sendReq @peerName i f
+castById = sendReq @peerName
 
 callAll ::
   forall (peerName :: Symbol) s ts sig m t b.

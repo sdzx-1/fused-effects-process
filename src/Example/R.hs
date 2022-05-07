@@ -57,10 +57,9 @@ runmProcess = do
       runWithServer @"et" se $
         runWithServer @"log" slog $
           runMetric @ETmetric $
-            runReader (EotConfig 1_000_000 tvar) $
-              runState @Int
-                1
-                eotProcess
+            runReader
+              (EotConfig 1_000_000 tvar)
+              eotProcess
 
   print "fork ptc process"
   forkIO $

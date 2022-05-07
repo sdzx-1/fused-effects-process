@@ -40,7 +40,7 @@ eotProcess ::
   ( MonadIO m,
     HasServer "log" SigLog '[Log] sig m,
     HasServer "et" SigException '[ProcessR] sig m,
-    Has (Reader EotConfig :+: State Int :+: Metric ETmetric) sig m
+    Has (Reader EotConfig :+: Metric ETmetric) sig m
   ) =>
   m ()
 eotProcess = forever $ do
