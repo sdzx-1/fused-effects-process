@@ -23,11 +23,7 @@ import Control.Carrier.Reader
   ( ReaderC (..),
     runReader,
   )
-import Control.Concurrent
-  ( newEmptyMVar,
-    takeMVar,
-  )
-import Control.Concurrent.STM (atomically)
+import Control.Concurrent.STM (atomically, newEmptyTMVarIO, takeTMVar)
 import Control.Effect.Labelled
   ( Algebra (..),
     HasLabelled,
@@ -91,9 +87,9 @@ call ::
   (RespVal b -> e) ->
   m b
 call f = do
-  mvar <- liftIO newEmptyMVar
+  mvar <- liftIO newEmptyTMVarIO
   sendReq @serverName (f $ RespVal mvar)
-  liftIO $ takeMVar mvar
+  liftIO $ atomically $ takeTMVar mvar
 
 timeoutCall ::
   forall serverName s ts sig m e b.
@@ -106,9 +102,9 @@ timeoutCall ::
   (RespVal b -> e) ->
   m (Maybe b)
 timeoutCall tot f = do
-  mvar <- liftIO newEmptyMVar
+  mvar <- liftIO newEmptyTMVarIO
   sendReq @serverName (f $ RespVal mvar)
-  liftIO $ timeout tot $ takeMVar mvar
+  liftIO $ timeout tot $ atomically $ takeTMVar mvar
 
 cast ::
   forall serverName s ts sig m e.

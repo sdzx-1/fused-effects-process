@@ -14,8 +14,8 @@ import Control.Algebra (Has, type (:+:))
 import Control.Carrier.Reader (Reader, asks)
 import Control.Concurrent
   ( threadDelay,
-    tryTakeMVar,
   )
+import Control.Concurrent.STM
 import Control.Monad (forM_, forever)
 import Control.Monad.IO.Class (MonadIO (..))
 import Data.Data (Proxy (Proxy))
@@ -45,7 +45,7 @@ ptcProcess = forever $ do
   tim <- asks ptctimeout
   liftIO $ threadDelay tim
   forM_ res $ \(pid, tmv) ->
-    liftIO (tryTakeMVar tmv) >>= \case
+    liftIO (atomically $ tryTakeTMVar tmv) >>= \case
       Nothing -> do
         inc all_pt_timeout
         cast @"ptc" (ProcessTimeout pid)

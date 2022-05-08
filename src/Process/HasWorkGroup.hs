@@ -41,11 +41,14 @@ import Control.Concurrent
     takeMVar,
   )
 import Control.Concurrent.STM
-  ( TVar,
+  ( TMVar,
+    TVar,
     atomically,
     modifyTVar',
+    newEmptyTMVarIO,
     newTVarIO,
     readTVar,
+    takeTMVar,
     writeTVar,
   )
 import Control.Effect.Labelled
@@ -100,7 +103,7 @@ type Request ::
   Type
 data Request s ts m a where
   SendReq :: (ToSig t s) => Int -> t -> Request s ts m ()
-  SendAllCall :: (ToSig t s) => (RespVal b -> t) -> Request s ts m [(Int, MVar b)]
+  SendAllCall :: (ToSig t s) => (RespVal b -> t) -> Request s ts m [(Int, TMVar b)]
   SendAllCast :: (ToSig t s) => t -> Request s ts m ()
 
 type Manager :: (Type -> Type) -> (Type -> Type) -> Type -> Type
@@ -130,7 +133,7 @@ sendAllCall ::
     HasLabelled serverName (Request s ts) sig m
   ) =>
   (RespVal b -> t) ->
-  m [(Int, MVar b)]
+  m [(Int, TMVar b)]
 sendAllCall t = sendLabelled @serverName (SendAllCall t)
 
 sendAllCast ::
@@ -154,9 +157,9 @@ callById ::
   (RespVal b -> e) ->
   m b
 callById i f = do
-  mvar <- liftIO newEmptyMVar
+  mvar <- liftIO newEmptyTMVarIO
   sendReq @serverName i (f $ RespVal mvar)
-  liftIO $ takeMVar mvar
+  liftIO $ atomically $ takeTMVar mvar
 
 data Reset
   = ResetWorker [Int]
@@ -180,7 +183,7 @@ sendWorks ::
   ) =>
   [IO ()] ->
   (IO () -> RespVal () -> e) ->
-  m ([(Int, MVar ())], Reset)
+  m ([(Int, TMVar ())], Reset)
 sendWorks works f = do
   workers <- getAllWorker @s
   let allWork = length works
@@ -190,7 +193,7 @@ sendWorks works f = do
         GT -> let (wera, werb) = splitAt allWork workers in (zip wera works, ResetWorker werb)
         LT -> let (wa, wb) = splitAt allWorker works in (zip workers wa, ResetWork wb)
   t <- forM workPair $ \(wid, work) -> do
-    mvar <- liftIO newEmptyMVar
+    mvar <- liftIO newEmptyTMVarIO
     sendReq @serverName wid (f work $ RespVal mvar)
     pure (wid, mvar)
   pure (t, rest)
@@ -206,7 +209,7 @@ callAll ::
   m [b]
 callAll t = do
   vs <- sendLabelled @serverName (SendAllCall t)
-  mapM (liftIO . takeMVar . snd) vs
+  mapM (liftIO . atomically . takeTMVar . snd) vs
 
 timeoutCallAll ::
   forall (serverName :: Symbol) s ts sig m t b.
@@ -220,7 +223,7 @@ timeoutCallAll ::
   m (Maybe [b])
 timeoutCallAll tot t = do
   vs <- sendLabelled @serverName (SendAllCall t)
-  liftIO $ timeout tot $ mapM (takeMVar . snd) vs
+  liftIO $ timeout tot $ mapM (atomically . takeTMVar . snd) vs
 
 mcall ::
   forall serverName s ts sig m e b.
@@ -324,7 +327,7 @@ instance (Algebra sig m, MonadIO m) => Algebra (Request s ts :+: Manager s :+: s
     L (SendAllCall t) -> do
       wm <- gets @(WorkGroupState s ts) workMap
       mvs <- forM (IntMap.toList wm) $ \(idx, ch) -> do
-        mv <- liftIO newEmptyMVar
+        mv <- liftIO newEmptyTMVarIO
         liftIO $ atomically $ writeTChan (pChan ch) (inject (t $ RespVal mv))
         pure (idx, mv)
       pure (mvs <$ ctx)

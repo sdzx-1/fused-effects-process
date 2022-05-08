@@ -29,7 +29,6 @@ import Control.Concurrent.STM
   ( TMVar,
     atomically,
     newEmptyTMVarIO,
-    putTMVar,
     takeTMVar,
   )
 import Control.Effect.Labelled
@@ -47,7 +46,16 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import GHC.TypeLits (Symbol)
 import Process.TChan (TChan, newTChanIO, writeTChan)
-import Process.Type (Elem, Elems, Some, Sum, ToList, ToSig, inject)
+import Process.Type
+  ( Elem,
+    Elems,
+    RespVal (..),
+    Some,
+    Sum,
+    ToList,
+    ToSig,
+    inject,
+  )
 import Unsafe.Coerce (unsafeCoerce)
 
 newtype NodeId = NodeId Int deriving (Show, Eq, Ord)
@@ -64,14 +72,6 @@ type HasPeerGroup (peerName :: Symbol) s ts sig m =
   ( Elems peerName ts (ToList s),
     HasLabelled peerName (PeerAction s ts) sig m
   )
-
-data RespVal a where
-  RespVal :: TMVar a -> RespVal a
-
-withResp :: (MonadIO m) => RespVal a %1 -> m a -> m ()
-withResp (RespVal tmv) ma = do
-  val <- ma
-  liftIO $ atomically $ putTMVar tmv val
 
 type PeerAction :: (Type -> Type) -> [Type] -> (Type -> Type) -> Type -> Type
 data PeerAction s ts m a where

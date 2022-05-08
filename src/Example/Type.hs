@@ -15,7 +15,7 @@
 module Example.Type where
 
 import Control.Concurrent (MVar)
-import Control.Concurrent.STM (TVar)
+import Control.Concurrent.STM (TMVar, TVar)
 import Control.Exception (SomeException)
 import Data.IntMap (IntMap)
 import Data.IntSet (IntSet)
@@ -114,7 +114,7 @@ data EotConfig = EotConfig
 data TimeoutCheckFinish = TimeoutCheckFinish
 
 data StartTimoutCheck where
-  StartTimoutCheck :: RespVal [(Int, MVar TimeoutCheckFinish)] %1 -> StartTimoutCheck
+  StartTimoutCheck :: RespVal [(Int, TMVar TimeoutCheckFinish)] %1 -> StartTimoutCheck
 
 data ProcessTimeout where
   ProcessTimeout :: Int -> ProcessTimeout

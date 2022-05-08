@@ -3,16 +3,17 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StandaloneKindSignatures #-}
-{-# LANGUAGE TypeApplications #-}
+-- {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeOperators #-}
 
 module MapWork.Type where
 
-import Control.Monad
-import Data.Data
+-- import Control.Monad
+-- import Data.Data
 import Data.Kind
 import GHC.TypeLits
-import Text.Printf
+
+-- import Text.Printf
 
 type Piple :: Type -> Type -> Nat -> Type
 data Piple a b n where

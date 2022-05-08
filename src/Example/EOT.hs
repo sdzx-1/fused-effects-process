@@ -12,9 +12,6 @@ module Example.EOT where
 
 import Control.Algebra (Has, type (:+:))
 import Control.Carrier.Reader (Reader, asks)
-import Control.Carrier.State.Strict
-  ( State,
-  )
 import Control.Concurrent
   ( threadDelay,
     tryTakeMVar,

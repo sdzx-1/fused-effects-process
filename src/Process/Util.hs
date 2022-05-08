@@ -20,13 +20,11 @@ import Control.Carrier.Reader
     ask,
     runReader,
   )
-import Control.Concurrent
-  ( putMVar,
-  )
 import Control.Concurrent.STM
   ( STM,
     atomically,
     orElse,
+    putTMVar,
   )
 import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO (..))
@@ -42,7 +40,7 @@ waitEither left right =
 withResp :: (MonadIO m) => RespVal a %1 -> m a -> m ()
 withResp (RespVal tmv) ma = do
   val <- ma
-  liftIO $ putMVar tmv val
+  liftIO $ atomically $ putTMVar tmv val
 
 -- server
 withMessageChan ::

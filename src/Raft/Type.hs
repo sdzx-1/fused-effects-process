@@ -25,10 +25,10 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Data.Typeable as T
 import Optics (makeLenses)
-import Process.HasPeerGroup (NodeId, RespVal)
-import Process.TH
+import Process.HasPeerGroup (NodeId)
+import Process.TH (mkSigAndClass)
 import Process.Timer (Timeout)
-import Process.Type (ToList, ToSig (..))
+import Process.Type (RespVal, ToList, ToSig (..))
 
 newtype Term = Term Int deriving (Show, Eq, Ord, Num)
 

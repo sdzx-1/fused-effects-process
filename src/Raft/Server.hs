@@ -43,12 +43,12 @@ import Process.HasPeerGroup
     callAll,
     getChan,
     runWithPeers,
-    withResp,
   )
 import Process.Metric (Metric, inc, putVal, runMetric)
 import Process.TChan (TChan, readTChan)
 import Process.Timer (Timeout, newTimeout, waitTimeout)
 import Process.Type (Some (..))
+import Process.Util
 import Raft.Metric
 import Raft.Type
   ( AppendEntries (AppendEntries),
