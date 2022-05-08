@@ -5,10 +5,10 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE ImpredicativeTypes #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE LinearTypes #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -101,14 +101,13 @@ t1 = forever $ do
             SigRPC1 (AppendEntries ents rsp) -> do
               withResp
                 rsp
-                ( do
-                    -- update machine
-                    forM_ (entries ents) $ \comm -> do
-                      case T.cast comm :: Maybe command of
-                        Nothing -> throwError StrangeError
-                        Just command -> modify @state (applyCommand command)
-                    pure undefined
-                )
+                $ do
+                  -- update machine
+                  forM_ (entries ents) $ \comm -> do
+                    case T.cast comm :: Maybe command of
+                      Nothing -> throwError StrangeError
+                      Just command -> modify @state (applyCommand command)
+                  pure undefined
             SigRPC2 (RequestVote _ rsp) -> undefined rsp
         )
         ( \case

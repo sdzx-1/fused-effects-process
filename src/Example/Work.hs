@@ -1,6 +1,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE ImpredicativeTypes #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE LinearTypes #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -41,25 +42,22 @@ mWork = forever $
     SigCommand2 (Info rsp) ->
       withResp
         rsp
-        ( do
-            pid <- asks workPid
-            pure (pid, "running")
-        )
+        $ do
+          pid <- asks workPid
+          pure (pid, "running")
     SigCommand3 (ProcessStartTimeoutCheck rsp) ->
       withResp
         rsp
-        ( do
-            -- pid <- asks workPid
-            -- cast @"log" $
-            --   LW $
-            --     "process "
-            --       ++ show pid
-            --       ++ " response timoue check"
-            pure TimeoutCheckFinish
-        )
+        $ do
+          -- pid <- asks workPid
+          -- cast @"log" $
+          --   LW $
+          --     "process "
+          --       ++ show pid
+          --       ++ " response timoue check"
+          pure TimeoutCheckFinish
     SigCommand4 (ProcessWork work rsp) -> do
       withResp
         rsp
-        ( do
-            liftIO work
-        )
+        $ do
+          liftIO work

@@ -1,6 +1,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE ImpredicativeTypes #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE LinearTypes #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -75,11 +76,10 @@ server =
           SigTimeoutCheck1 (StartTimoutCheck rsp) ->
             withResp
               rsp
-              ( do
-                  cast @"log" $ LD "send all check message to works"
-                  inc all_start_timeout_check
-                  sendAllCall @"w" ProcessStartTimeoutCheck
-              )
+              $ do
+                cast @"log" $ LD "send all check message to works"
+                inc all_start_timeout_check
+                sendAllCall @"w" ProcessStartTimeoutCheck
           SigTimeoutCheck2 (ProcessTimeout pid) -> do
             inc all_timeout
             modify $ IntSet.insert pid
@@ -109,11 +109,10 @@ server =
           SigCreate2 (GetInfo rsp) ->
             withResp
               rsp
-              ( do
-                  allM <- getAll @Wmetric Proxy
-                  cast @"log" $ LE $ showMetric allM
-                  timeoutCallAll @"w" 1_000_000 Info
-              )
+              $ do
+                allM <- getAll @Wmetric Proxy
+                cast @"log" $ LE $ showMetric allM
+                timeoutCallAll @"w" 1_000_000 Info
           SigCreate3 (StopProcess i) -> do
             castById @"w" i Stop
             deleteChan @SigCommand i

@@ -1,6 +1,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE ImpredicativeTypes #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE LinearTypes #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -93,14 +94,13 @@ logServer = forever $
     SigLog3 (Switch t rsp) ->
       withResp
         rsp
-        ( case t of
-            LogFile -> do
-              liftIO $ putStrLn "switch logFile"
-              useLogFile %= not
-            LogPrint -> do
-              liftIO $ putStrLn "switch printOut"
-              printOut %= not
-        )
+        $ case t of
+          LogFile -> do
+            liftIO $ putStrLn "switch logFile"
+            useLogFile %= not
+          LogPrint -> do
+            liftIO $ putStrLn "switch printOut"
+            printOut %= not
     SigLog4 Stop -> do
       whenM (use useLogFile) $ do
         bu <- use linearBuilder
