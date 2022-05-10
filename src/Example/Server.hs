@@ -23,7 +23,6 @@ import Control.Carrier.State.Strict
   )
 import Control.Monad (forever, void)
 import Control.Monad.IO.Class (MonadIO (..))
-import Data.Data (Proxy (Proxy))
 import Data.IntSet (IntSet)
 import qualified Data.IntSet as IntSet
 import Example.Metric
@@ -110,7 +109,7 @@ server =
             withResp
               rsp
               $ do
-                allM <- getAll @Wmetric Proxy
+                allM <- getAll @Wmetric
                 cast @"log" $ LE $ showMetric allM
                 timeoutCallAll @"w" 1_000_000 Info
           SigCreate3 (StopProcess i) -> do
@@ -130,6 +129,6 @@ server =
           SigCreate8 (GetProcessInfo rsp) ->
             withResp rsp (getAllInfo @SigCommand)
           SigCreate9 LogStatus -> do
-            allM <- getAll @Wmetric Proxy
+            allM <- getAll @Wmetric
             cast @"log" $ LD $ showMetric allM
       )

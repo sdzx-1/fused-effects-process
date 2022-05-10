@@ -19,7 +19,6 @@ import Control.Carrier.State.Strict
 import Control.Effect.Optics (use, (%=), (.=))
 import Control.Monad (forever, when)
 import Control.Monad.IO.Class (MonadIO (..))
-import Data.Data (Proxy (Proxy))
 import qualified Data.Text as T
 import qualified Data.Text.Builder.Linear as TLinear
 import qualified Data.Text.IO as TIO
@@ -70,7 +69,7 @@ logServer = forever $
         inc all_lines
         li <- show <$> getVal all_lines
         whenM (use printOut) $ do
-          logCount <- getAll @Lines Proxy
+          logCount <- getAll @Lines
           liftIO $ do
             putStrLn $ showMetric logCount
             putStrLn (logFun li lv st)

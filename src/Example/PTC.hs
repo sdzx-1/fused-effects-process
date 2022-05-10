@@ -18,7 +18,6 @@ import Control.Concurrent
 import Control.Concurrent.STM
 import Control.Monad (forM_, forever)
 import Control.Monad.IO.Class (MonadIO (..))
-import Data.Data (Proxy (Proxy))
 import Example.Metric
 import Example.Type
 import Process.HasServer (HasServer, call, cast)
@@ -38,7 +37,7 @@ ptcProcess ::
   ) =>
   m ()
 ptcProcess = forever $ do
-  allMetrics <- getAll @PTmetric Proxy
+  allMetrics <- getAll @PTmetric
   cast @"log" $ LW $ showMetric allMetrics
   inc all_pt_cycle
   res <- call @"ptc" StartTimoutCheck

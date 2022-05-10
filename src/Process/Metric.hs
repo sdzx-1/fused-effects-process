@@ -105,7 +105,7 @@ data Metric v m a where
   Dec :: KnownNat s => (v -> K s) -> Metric v m ()
   GetVal :: KnownNat s => (v -> K s) -> Metric v m Int
   PutVal :: KnownNat s => (v -> K s) -> Int -> Metric v m ()
-  GetAll :: Proxy v -> Metric v m [(String, Int)]
+  GetAll :: Metric v m [(String, Int)]
 
 inc :: (Has (Metric v) sig m, KnownNat s) => (v -> K s) -> m ()
 inc g = send (Inc g)
@@ -119,8 +119,8 @@ getVal g = send (GetVal g)
 putVal :: (Has (Metric v) sig m, KnownNat s) => (v -> K s) -> Int -> m ()
 putVal g v = send (PutVal g v)
 
-getAll :: Has (Metric v) sig m => Proxy v -> m [(String, Int)]
-getAll v = send (GetAll v)
+getAll :: forall v sig m. Has (Metric v) sig m => m [(String, Int)]
+getAll = send (GetAll @v)
 
 newtype MetriC v m a = MetriC {unMetric :: ReaderC (IOVector Int) m a}
   deriving (Functor, Applicative, Monad, MonadIO)
@@ -143,7 +143,7 @@ instance
       L (PutVal g v) -> do
         liftIO $ pv iov g v
         pure ctx
-      L (GetAll _) -> do
+      L GetAll -> do
         v <- liftIO $ M.ifoldr' (\i a b -> (vName @v undefined V.! i, a) : b) [] iov
         pure (v <$ ctx)
       R signa -> alg (runReader iov . unMetric . hdl) signa ctx

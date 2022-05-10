@@ -19,7 +19,6 @@ import Control.Concurrent
 import Control.Concurrent.STM (readTVarIO)
 import Control.Monad (forever)
 import Control.Monad.IO.Class (MonadIO (..))
-import Data.Data (Proxy (Proxy))
 import qualified Data.IntMap as IntMap
 import Example.Metric
 import Example.Type
@@ -55,6 +54,6 @@ eotProcess = forever $ do
           Right _ -> inc all_et_terminate
         cast @"et" (ProcessR pid res)
   interval <- asks einterval
-  allMetrics <- getAll @ETmetric Proxy
+  allMetrics <- getAll @ETmetric
   cast @"log" $ LW (showMetric allMetrics)
   liftIO $ threadDelay interval
