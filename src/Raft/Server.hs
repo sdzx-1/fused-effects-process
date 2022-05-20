@@ -122,9 +122,7 @@ t1 = forever $ do
     Candidate -> do
       callAll @"peer" $
         RequestVote $
-          Vote
-            { vterm = 0,
-              candidateId = NodeId 1,
+          Vote { vterm = 0, candidateId = NodeId 1,
               lastLogIndex = 0,
               lastLogTerm = 0
             }

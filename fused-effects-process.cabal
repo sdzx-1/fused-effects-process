@@ -40,6 +40,7 @@ library
                     , Raft.Type
                     , Raft.Server
                     , Raft.Metric
+                    , Raft.T
                     , MapWork.Type
 
     -- Modules included in this library but not exported.
