@@ -139,7 +139,7 @@ t1 = forever $ do
 
 r1 :: IO ()
 r1 = do
-  nodes <- forM [1 .. 10] $ \i -> do
+  nodes <- forM [1 .. 100] $ \i -> do
     tc <- newTChanIO
     pure (NodeId i, tc)
   let nodeMap = Map.fromList nodes
