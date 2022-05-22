@@ -28,6 +28,7 @@ import Control.Concurrent.STM
   )
 import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO (..))
+import Process.HasPeerGroup
 import Process.TChan (TChan, newTChanIO, readTChan)
 import Process.Type (RespVal (..), Some (..))
 
@@ -131,6 +132,18 @@ whenM :: Monad m => m Bool -> m () -> m ()
 whenM b m = do
   bool <- b
   when bool m
+
+handleMsg ::
+  forall peerName s ts sig m.
+  ( MonadIO m,
+    HasPeerGroup peerName s ts sig m
+  ) =>
+  (forall s1. s s1 %1 -> m ()) ->
+  m ()
+handleMsg f = do
+  chan <- getChan @peerName
+  Some tc <- liftIO $ atomically $ readTChan chan
+  f tc
 
 -- inputOutput
 --     :: forall input workName s ts sig m

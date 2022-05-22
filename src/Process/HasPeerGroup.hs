@@ -51,7 +51,7 @@ import Process.Type
     Elems,
     RespVal (..),
     Some,
-    Sum,
+    Sum (..),
     ToList,
     ToSig,
     inject,

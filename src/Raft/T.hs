@@ -16,52 +16,34 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
-{-# OPTIONS_GHC -Wno-unused-matches #-}
 
 module Raft.T where
 
-import Control.Algebra (Has, type (:+:))
-import Control.Applicative (Alternative ((<|>)))
-import Control.Carrier.Error.Either
-  ( Error,
-    catchError,
-    runError,
-    throwError,
-  )
+import Control.Algebra (Has)
 import Control.Carrier.State.Strict
   ( State,
     get,
-    modify,
     put,
     runState,
   )
 import Control.Concurrent
 import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TMVar (readTMVar)
-import Control.Effect.Optics (use, (.=))
 import Control.Monad (forM, forM_, forever, void)
 import Control.Monad.IO.Class (MonadIO (..))
-import Data.Map (Map)
 import qualified Data.Map as Map
-import qualified Data.Typeable as T
 import Process.HasPeerGroup
   ( HasPeerGroup,
     NodeId (NodeId),
     NodeState (..),
     callAll,
     getChan,
-    runWithPeers,
     runWithPeers',
   )
-import Process.HasWorkGroup hiding (callAll)
-import Process.Metric (Metric, inc, putVal, runMetric)
-import Process.TChan (TChan, newTChanIO, readTChan)
+import Process.TChan (newTChanIO, readTChan)
 import Process.TH (mkSigAndClass)
-import Process.Timer (Timeout, newTimeout, waitTimeout)
 import Process.Type
-import Process.Type (RespVal (RespVal), Some (..))
 import Process.Util
-import Raft.Metric
 import System.Random
 
 data Role = Master | Slave
@@ -98,6 +80,10 @@ t1 = forever $ do
             put Slave
           Right val -> liftIO $ print $ show a ++ " resp val " ++ show val
     Slave -> do
+      handleMsg @"peer" $ \case
+        SigRPC1 (CastMsg i) -> undefined
+        SigRPC2 (CallMsg rsp) -> withResp rsp undefined
+
       chan <- getChan @"peer"
       Some tc <- liftIO $ atomically $ readTChan chan
       case tc of
