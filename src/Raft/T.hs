@@ -23,6 +23,7 @@ import Control.Algebra (Has)
 import Control.Carrier.State.Strict
   ( State,
     get,
+    modify,
     put,
     runState,
   )
@@ -41,11 +42,14 @@ import Process.HasPeerGroup
     getNodeId,
     runWithPeers',
   )
+import Process.HasServer (HasServer, cast, runWithServer)
+import Process.Metric
 import Process.TChan (newTChanIO)
-import Process.TH (mkSigAndClass)
+import Process.TH
 import Process.Type
 import Process.Util
 import System.Random
+import Prelude hiding (log)
 
 data Role = Master | Slave
 
@@ -55,22 +59,64 @@ data ChangeMaster where
 data CallMsg where
   CallMsg :: RespVal Int %1 -> CallMsg
 
+data Log where
+  Log :: String -> Log
+
+data Cal where
+  Cal :: Cal
+
+mkSigAndClass
+  "SigLog"
+  [ ''Log,
+    ''Cal
+  ]
+
 mkSigAndClass
   "SigRPC"
   [ ''CallMsg,
     ''ChangeMaster
   ]
 
+mkMetric
+  "LogMet"
+  [ "all_log"
+  ]
+
+log ::
+  ( MonadIO m,
+    Has (Metric LogMet) sig m,
+    Has (MessageChan SigLog) sig m
+  ) =>
+  m ()
+log = forever $ do
+  withMessageChan @SigLog \case
+    SigLog1 (Log _) -> do
+      inc all_log
+    SigLog2 Cal -> do
+      val <- getVal all_log
+      liftIO $ print val
+      putVal all_log 0
+
+t0 ::
+  ( MonadIO m,
+    HasServer "log" SigLog '[Cal] sig m
+  ) =>
+  m ()
+t0 = forever $ do
+  cast @"log" Cal
+  liftIO $ threadDelay 1_000_000
+
 t1 ::
   ( MonadIO m,
     Has (State Role) sig m,
+    HasServer "log" SigLog '[Log] sig m,
     HasPeerGroup "peer" SigRPC '[CallMsg, ChangeMaster] sig m
   ) =>
   m ()
 t1 = forever $ do
   get @Role >>= \case
     Master -> do
-      liftIO $ threadDelay 1_000_00
+      -- liftIO $ threadDelay 1_000_00
       res <- callAll @"peer" $ CallMsg
       vals <- forM res $ \(a, b) -> do
         val <- liftIO $ atomically $ readTMVar b
@@ -81,13 +127,14 @@ t1 = forever $ do
     Slave -> do
       handleMsg @"peer" $ \case
         SigRPC1 (CallMsg rsp) -> withResp rsp $ do
-          nid <- getNodeId @"peer"
-          rv <- liftIO $ randomRIO @Int (10, 100)
-          liftIO $ print (nid, rv)
-          pure rv
+          liftIO $ randomRIO @Int (1, 1_000_000)
+        -- nid <- getNodeId @"peer"
+        -- liftIO $ print (nid, rv)
+        -- pure rv
         SigRPC2 (ChangeMaster rsp) -> withResp rsp $ do
           nid <- getNodeId @"peer"
-          liftIO $ print $ show nid ++ " be master"
+          cast @"log" $ Log $ show nid ++ " be master"
+          -- liftIO $ print $ show nid ++ " be master"
           put Master
 
 r1 :: IO ()
@@ -99,14 +146,27 @@ r1 = do
   h : hs <- forM nodes $ \(nid, tc) -> do
     pure (NodeState nid (Map.delete nid nodeMap) tc)
 
+  logChan <- newMessageChan @SigLog
+
   forkIO $
     void $
-      runWithPeers' @"peer" h $ runState Master t1
+      runWithServer @"log" logChan t0
+
+  forkIO $
+    void $
+      runMetric @LogMet $
+        runServerWithChan logChan log
+
+  forkIO $
+    void $
+      runWithServer @"log" logChan $
+        runWithPeers' @"peer" h $ runState Master t1
 
   forM_ hs $ \h' -> do
     forkIO $
       void $
-        runWithPeers' @"peer" h' $ runState Slave t1
+        runWithServer @"log" logChan $
+          runWithPeers' @"peer" h' $ runState Slave t1
 
   forever $ do
     threadDelay 10_000_000
