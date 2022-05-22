@@ -37,10 +37,11 @@ import Process.HasPeerGroup
     NodeId (NodeId),
     NodeState (..),
     callAll,
-    getChan,
+    callById,
+    getNodeId,
     runWithPeers',
   )
-import Process.TChan (newTChanIO, readTChan)
+import Process.TChan (newTChanIO)
 import Process.TH (mkSigAndClass)
 import Process.Type
 import Process.Util
@@ -48,76 +49,64 @@ import System.Random
 
 data Role = Master | Slave
 
-data CastMsg where
-  CastMsg :: Int -> CastMsg
-
-data ChangeMaster = ChangeMaster
+data ChangeMaster where
+  ChangeMaster :: RespVal () %1 -> ChangeMaster
 
 data CallMsg where
-  CallMsg :: RespVal (Either ChangeMaster Int) %1 -> CallMsg
+  CallMsg :: RespVal Int %1 -> CallMsg
 
 mkSigAndClass
   "SigRPC"
-  [ ''CastMsg,
-    ''CallMsg
+  [ ''CallMsg,
+    ''ChangeMaster
   ]
 
 t1 ::
   ( MonadIO m,
     Has (State Role) sig m,
-    HasPeerGroup "peer" SigRPC '[CastMsg, CallMsg] sig m
+    HasPeerGroup "peer" SigRPC '[CallMsg, ChangeMaster] sig m
   ) =>
   m ()
 t1 = forever $ do
-  liftIO $ threadDelay 1_000_000
   get @Role >>= \case
     Master -> do
+      liftIO $ threadDelay 1_000_00
       res <- callAll @"peer" $ CallMsg
-      forM_ res $ \(a, b) -> do
+      vals <- forM res $ \(a, b) -> do
         val <- liftIO $ atomically $ readTMVar b
-        case val of
-          Left ChangeMaster -> do
-            put Slave
-          Right val -> liftIO $ print $ show a ++ " resp val " ++ show val
+        pure (val, a)
+      let mnid = snd $ maximum vals
+      callById @"peer" mnid ChangeMaster
+      put Slave
     Slave -> do
       handleMsg @"peer" $ \case
-        SigRPC1 (CastMsg i) -> undefined
-        SigRPC2 (CallMsg rsp) -> withResp rsp undefined
-
-      chan <- getChan @"peer"
-      Some tc <- liftIO $ atomically $ readTChan chan
-      case tc of
-        SigRPC1 (CastMsg i) -> liftIO $ do
-          print "receive master cast msg"
-          print i
-        SigRPC2 (CallMsg rsp) -> withResp rsp $ do
-          liftIO $ print "receive master call msg"
-          ri <- liftIO $ randomRIO @Int (10, 100)
-          liftIO $ print $ "response val is " ++ show ri
-          if ri > 70
-            then do
-              liftIO $ print ".................."
-              put Master
-              pure (Left ChangeMaster)
-            else do
-              pure (Right ri)
+        SigRPC1 (CallMsg rsp) -> withResp rsp $ do
+          nid <- getNodeId @"peer"
+          rv <- liftIO $ randomRIO @Int (10, 100)
+          liftIO $ print (nid, rv)
+          pure rv
+        SigRPC2 (ChangeMaster rsp) -> withResp rsp $ do
+          nid <- getNodeId @"peer"
+          liftIO $ print $ show nid ++ " be master"
+          put Master
 
 r1 :: IO ()
 r1 = do
-  nodes <- forM [1 .. 2] $ \i -> do
+  nodes <- forM [1 .. 10] $ \i -> do
     tc <- newTChanIO
     pure (NodeId i, tc)
   let nodeMap = Map.fromList nodes
-  [a, b] <- forM nodes $ \(nid, tc) -> do
+  h : hs <- forM nodes $ \(nid, tc) -> do
     pure (NodeState nid (Map.delete nid nodeMap) tc)
 
   forkIO $
     void $
-      runWithPeers' @"peer" a $ runState Master $ t1
+      runWithPeers' @"peer" h $ runState Master t1
 
-  forkIO $
-    void $
-      runWithPeers' @"peer" b $ runState Slave $ t1
+  forM_ hs $ \h' -> do
+    forkIO $
+      void $
+        runWithPeers' @"peer" h' $ runState Slave t1
 
   forever $ do
     threadDelay 10_000_000

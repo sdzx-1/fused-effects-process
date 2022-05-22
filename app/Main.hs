@@ -1,6 +1,8 @@
 module Main where
 
 import Example.R (runmProcess)
+import Raft.T as T
 
 main :: IO ()
-main = runmProcess
+main = T.r1
+    -- runmProcess

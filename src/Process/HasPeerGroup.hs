@@ -79,12 +79,21 @@ data PeerAction s ts m a where
   Join :: NodeId -> TChan (Sum s ts) -> PeerAction s ts m ()
   Leave :: NodeId -> PeerAction s ts m ()
   PeerSize :: PeerAction s ts m Int
+  ------- info
+  GetNodeId :: PeerAction s ts m NodeId
   ------- messge
   SendMessage :: (ToSig t s) => NodeId -> t -> PeerAction s ts m ()
   SendAllCall :: (ToSig t s) => (RespVal b -> t) -> PeerAction s ts m [(NodeId, TMVar b)]
   SendAllCast :: (ToSig t s) => t -> PeerAction s ts m ()
   ------- chan
   GetChan :: PeerAction s ts m (TChan (Some s))
+
+getNodeId ::
+  forall (peerName :: Symbol) s ts sig m.
+  ( HasLabelled peerName (PeerAction s ts) sig m
+  ) =>
+  m NodeId
+getNodeId = sendLabelled @peerName GetNodeId
 
 getChan ::
   forall (peerName :: Symbol) s ts sig m.
@@ -215,6 +224,9 @@ instance
     L GetChan -> do
       NodeState {nodeChan} <- get @(NodeState s ts)
       pure (unsafeCoerce nodeChan <$ ctx)
+    L GetNodeId -> do 
+      NodeState {nodeId} <- get @(NodeState s ts)
+      pure (nodeId <$ ctx)
     R signa -> alg (unPeerActionC . hdl) (R signa) ctx
 
 initNodeState :: NodeId -> IO (NodeState s ts)
