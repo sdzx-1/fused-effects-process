@@ -4,6 +4,7 @@ module Process.TChan
     readTChan,
     newTChanIO,
     flushTQueue,
+    tryReadTQueue,
     getChanSize,
   )
 where
@@ -36,6 +37,16 @@ flushTQueue (TChan tv tc) = do
   vals <- T.flushTQueue tc
   T.modifyTVar' tv (const 0)
   pure vals
+
+tryReadTQueue :: TChan a -> T.STM (Maybe a)
+tryReadTQueue (TChan tv tc) = do
+  val <- T.tryReadTQueue tc
+  case val of
+    Nothing -> do
+      pure Nothing
+    Just v -> do
+      T.modifyTVar' tv (\x -> x - 1)
+      pure $ Just v
 
 getChanSize :: TChan a -> IO Int
 getChanSize (TChan tv _) = T.atomically $ T.readTVar tv
