@@ -26,10 +26,10 @@ import Control.Concurrent.STM
     orElse,
     putTMVar,
   )
-import Control.Monad (when)
+import Control.Monad (forM_, when)
 import Control.Monad.IO.Class (MonadIO (..))
 import Process.HasPeerGroup
-import Process.TChan (TChan, newTChanIO, readTChan)
+import Process.TChan (TChan, flushTQueue, newTChanIO, readTChan)
 import Process.Type (RespVal (..), Some (..))
 
 type MessageChan f = Reader (TChan (Some f))
@@ -42,6 +42,16 @@ withResp :: (MonadIO m) => RespVal a %1 -> m a -> m ()
 withResp (RespVal tmv) ma = do
   val <- ma
   liftIO $ atomically $ putTMVar tmv val
+
+handleFlushMsgs ::
+  forall f sig m.
+  (Has (MessageChan f) sig m, MonadIO m) =>
+  (forall s. f s %1 -> m ()) ->
+  m ()
+handleFlushMsgs f = do
+  tc <- ask @(TChan (Some f))
+  vals <- liftIO $ atomically $ flushTQueue tc
+  forM_ vals $ \(Some v) -> f v
 
 -- server
 withMessageChan ::
