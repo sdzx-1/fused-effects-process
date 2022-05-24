@@ -77,14 +77,15 @@ microsecondsAsIntToDiffTime :: Int -> DiffTime
 microsecondsAsIntToDiffTime = (/ 1_000_000) . fromIntegral
 
 waitTMVars :: [(index, TMVar a)] -> STM (index, a)
-waitTMVars tmvs =
-  foldr (<|>) retry $
-    map
-      ( \(i, tmv) -> do
-          mv <- takeTMVar tmv
-          pure (i, mv)
-      )
-      tmvs
+waitTMVars =
+  foldr
+    ( (<|>)
+        . ( \(i, tmv) -> do
+              mv <- takeTMVar tmv
+              pure (i, mv)
+          )
+    )
+    retry
 
 waitTimeout :: Timeout -> STM (Maybe a)
 waitTimeout tmout = do

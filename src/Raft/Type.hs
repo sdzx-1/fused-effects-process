@@ -27,7 +27,7 @@ import qualified Data.Typeable as T
 import Optics (makeLenses)
 import Process.TH (mkSigAndClass)
 import Process.Timer (Timeout)
-import Process.Type (RespVal, ToList, ToSig (..), NodeId)
+import Process.Type (NodeId, RespVal, ToList, ToSig (..))
 
 newtype Term = Term Int deriving (Show, Eq, Ord, Num)
 
@@ -62,6 +62,7 @@ data PersistentState command = PersistentState
   }
   deriving (Show)
 
+initPersistentState :: PersistentState command
 initPersistentState =
   PersistentState
     { currentTerm = 0,
@@ -75,6 +76,7 @@ data VolatileState = VolatileState
   }
   deriving (Show)
 
+initVolatileState :: VolatileState
 initVolatileState =
   VolatileState
     { commitIndex = 0,
@@ -87,6 +89,7 @@ data LeaderVolatileState = LeaderVolatileState
   }
   deriving (Show)
 
+initLeaderVolatileState :: LeaderVolatileState
 initLeaderVolatileState =
   LeaderVolatileState
     { nextIndexs = Map.empty,
