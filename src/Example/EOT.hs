@@ -19,7 +19,7 @@ import Control.Concurrent
 import Control.Concurrent.STM (readTVarIO)
 import Control.Monad (forever)
 import Control.Monad.IO.Class (MonadIO (..))
-import qualified Data.IntMap as IntMap
+import qualified Data.Map as Map
 import Example.Metric
 import Example.Type
 import Process.HasServer (HasServer, cast)
@@ -43,7 +43,7 @@ eotProcess = forever $ do
   inc all_et_cycle
   tvar <- asks etMap
   tmap <- liftIO $ readTVarIO tvar
-  flip IntMap.traverseWithKey tmap $ \_ tv ->
+  flip Map.traverseWithKey tmap $ \_ tv ->
     liftIO (tryTakeMVar tv) >>= \case
       Nothing -> do
         inc all_et_nothing

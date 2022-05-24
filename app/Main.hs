@@ -4,5 +4,5 @@ import Example.R (runmProcess)
 import Raft.T as T
 
 main :: IO ()
-main = T.r1
-    -- runmProcess
+main =  T.r1
+   -- runmProcess

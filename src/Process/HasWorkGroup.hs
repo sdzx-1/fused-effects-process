@@ -62,9 +62,9 @@ import Control.Monad
   ( forM,
   )
 import Control.Monad.IO.Class (MonadIO (..))
-import Data.IntMap (IntMap)
-import qualified Data.IntMap as IntMap
 import Data.Kind (Type)
+import Data.Map (Map)
+import qualified Data.Map as Map
 import Data.Time (getCurrentTime)
 import Data.Traversable (for)
 import GHC.TypeLits (Symbol)
@@ -76,6 +76,7 @@ import Process.TChan
 import Process.Type
   ( Elem,
     Elems,
+    NodeId (NodeId),
     ProcessInfo,
     ProcessState (..),
     RespVal (..),
@@ -83,6 +84,7 @@ import Process.Type
     Some (..),
     ToList,
     ToSig,
+    addOne,
     inject,
     state2info,
   )
@@ -102,17 +104,17 @@ type Request ::
   Type ->
   Type
 data Request s ts m a where
-  SendReq :: (ToSig t s) => Int -> t -> Request s ts m ()
-  SendAllCall :: (ToSig t s) => (RespVal b -> t) -> Request s ts m [(Int, TMVar b)]
+  SendReq :: (ToSig t s) => NodeId -> t -> Request s ts m ()
+  SendAllCall :: (ToSig t s) => (RespVal b -> t) -> Request s ts m [(NodeId, TMVar b)]
   SendAllCast :: (ToSig t s) => t -> Request s ts m ()
 
 type Manager :: (Type -> Type) -> (Type -> Type) -> Type -> Type
 data Manager s m a where
-  CreateWorker :: (Int -> TChan (Some s) -> IO ()) -> Manager s m ()
-  DeleteChannel :: Int -> Manager s m ()
-  ClearTVar :: Int -> Manager s m ()
-  KillWorker :: Int -> Manager s m ()
-  GetAllWorker :: Manager s m [Int]
+  CreateWorker :: (NodeId -> TChan (Some s) -> IO ()) -> Manager s m ()
+  DeleteChannel :: NodeId -> Manager s m ()
+  ClearTVar :: NodeId -> Manager s m ()
+  KillWorker :: NodeId -> Manager s m ()
+  GetAllWorker :: Manager s m [NodeId]
   GetAllInfo :: Manager s m [ProcessInfo]
 
 sendReq ::
@@ -121,7 +123,7 @@ sendReq ::
     ToSig t s,
     HasLabelled serverName (Request s ts) sig m
   ) =>
-  Int ->
+  NodeId ->
   t ->
   m ()
 sendReq i t = sendLabelled @serverName (SendReq i t)
@@ -133,7 +135,7 @@ sendAllCall ::
     HasLabelled serverName (Request s ts) sig m
   ) =>
   (RespVal b -> t) ->
-  m [(Int, TMVar b)]
+  m [(NodeId, TMVar b)]
 sendAllCall t = sendLabelled @serverName (SendAllCall t)
 
 sendAllCast ::
@@ -153,7 +155,7 @@ callById ::
     MonadIO m,
     HasLabelled (serverName :: Symbol) (Request s ts) sig m
   ) =>
-  Int ->
+  NodeId ->
   (RespVal b -> e) ->
   m b
 callById i f = do
@@ -162,7 +164,7 @@ callById i f = do
   liftIO $ atomically $ takeTMVar mvar
 
 data Reset
-  = ResetWorker [Int]
+  = ResetWorker [NodeId]
   | ResetWork [IO ()]
   | NoReset
 
@@ -183,7 +185,7 @@ sendWorks ::
   ) =>
   [IO ()] ->
   (IO () -> RespVal () -> e) ->
-  m ([(Int, TMVar ())], Reset)
+  m ([(NodeId, TMVar ())], Reset)
 sendWorks works f = do
   workers <- getAllWorker @s
   let allWork = length works
@@ -232,7 +234,7 @@ mcall ::
     MonadIO m,
     HasLabelled (serverName :: Symbol) (Request s ts) sig m
   ) =>
-  [Int] ->
+  [NodeId] ->
   (MVar b -> e) ->
   m [b]
 mcall is f = do
@@ -248,7 +250,7 @@ castById ::
     MonadIO m,
     HasLabelled (serverName :: Symbol) (Request s ts) sig m
   ) =>
-  Int ->
+  NodeId ->
   e ->
   m ()
 castById i f = do
@@ -272,7 +274,7 @@ mcast ::
     HasLabelled serverName (Request s ts) sig m,
     MonadIO m
   ) =>
-  [Int] ->
+  [NodeId] ->
   e ->
   m ()
 mcast is f = mapM_ (\x -> castById @serverName x f) is
@@ -280,24 +282,24 @@ mcast is f = mapM_ (\x -> castById @serverName x f) is
 createWorker ::
   forall s sig m.
   (MonadIO m, Has (Manager s) sig m) =>
-  (Int -> TChan (Some s) -> IO ()) ->
+  (NodeId -> TChan (Some s) -> IO ()) ->
   m ()
 createWorker fun = send (CreateWorker fun)
 
 deleteChan ::
-  forall s sig m. (MonadIO m, Has (Manager s) sig m) => Int -> m ()
+  forall s sig m. (MonadIO m, Has (Manager s) sig m) => NodeId -> m ()
 deleteChan i = send (DeleteChannel @s i)
 
 clearTVar ::
-  forall s sig m. (MonadIO m, Has (Manager s) sig m) => Int -> m ()
+  forall s sig m. (MonadIO m, Has (Manager s) sig m) => NodeId -> m ()
 clearTVar i = send (ClearTVar @s i)
 
 killWorker ::
-  forall s sig m. (MonadIO m, Has (Manager s) sig m) => Int -> m ()
+  forall s sig m. (MonadIO m, Has (Manager s) sig m) => NodeId -> m ()
 killWorker i = send (KillWorker @s i)
 
 getAllWorker ::
-  forall s sig m. (MonadIO m, Has (Manager s) sig m) => m [Int]
+  forall s sig m. (MonadIO m, Has (Manager s) sig m) => m [NodeId]
 getAllWorker = send (GetAllWorker @s)
 
 getAllInfo ::
@@ -305,9 +307,9 @@ getAllInfo ::
 getAllInfo = send (GetAllInfo @s)
 
 data WorkGroupState s ts = WorkGroupState
-  { workMap :: IntMap (ProcessState s ts),
-    counter :: Int,
-    terminateMap :: TVar (IntMap (MVar Result))
+  { workMap :: Map NodeId (ProcessState s ts),
+    counter :: NodeId,
+    terminateMap :: TVar (Map NodeId (MVar Result))
   }
 
 newtype RequestC s ts m a = RequestC {unRequestC :: StateC (WorkGroupState s ts) m a}
@@ -317,7 +319,7 @@ instance (Algebra sig m, MonadIO m) => Algebra (Request s ts :+: Manager s :+: s
   alg hdl sig ctx = RequestC $ case sig of
     L (SendReq i t) -> do
       wm <- gets @(WorkGroupState s ts) workMap
-      case IntMap.lookup i wm of
+      case Map.lookup i wm of
         Nothing -> do
           liftIO $ print $ "not found pid: " ++ show i
           pure ctx
@@ -326,14 +328,14 @@ instance (Algebra sig m, MonadIO m) => Algebra (Request s ts :+: Manager s :+: s
           pure ctx
     L (SendAllCall t) -> do
       wm <- gets @(WorkGroupState s ts) workMap
-      mvs <- forM (IntMap.toList wm) $ \(idx, ch) -> do
+      mvs <- forM (Map.toList wm) $ \(idx, ch) -> do
         mv <- liftIO newEmptyTMVarIO
         liftIO $ atomically $ writeTChan (pChan ch) (inject (t $ RespVal mv))
         pure (idx, mv)
       pure (mvs <$ ctx)
     L (SendAllCast t) -> do
       wm <- gets @(WorkGroupState s ts) workMap
-      IntMap.traverseWithKey
+      Map.traverseWithKey
         (\_ ch -> liftIO $ atomically $ writeTChan (pChan ch) (inject t))
         wm
       pure ctx
@@ -355,11 +357,11 @@ instance (Algebra sig m, MonadIO m) => Algebra (Request s ts :+: Manager s :+: s
       liftIO $
         atomically $ do
           im <- readTVar terminateMap
-          writeTVar terminateMap (IntMap.insert counter tmv im)
+          writeTVar terminateMap (Map.insert counter tmv im)
 
       -- update workMap
-      let newcounter = counter + 1
-          newmap = IntMap.insert counter (ProcessState (unsafeCoerce chan) counter tid) workMap
+      let newcounter = addOne counter
+          newmap = Map.insert counter (ProcessState (unsafeCoerce chan) counter tid) workMap
       put state {workMap = newmap, counter = newcounter}
 
       pure ctx
@@ -368,7 +370,7 @@ instance (Algebra sig m, MonadIO m) => Algebra (Request s ts :+: Manager s :+: s
     R ((L (DeleteChannel i))) -> do
       state@WorkGroupState {workMap} <-
         get @(WorkGroupState s ts)
-      put state {workMap = IntMap.delete i workMap}
+      put state {workMap = Map.delete i workMap}
       pure ctx
 
     -- remove tvar where id is i
@@ -377,12 +379,12 @@ instance (Algebra sig m, MonadIO m) => Algebra (Request s ts :+: Manager s :+: s
         get @(WorkGroupState s ts)
       liftIO $
         atomically $
-          modifyTVar' terminateMap (IntMap.delete i)
+          modifyTVar' terminateMap (Map.delete i)
       pure ctx
     -- kill a worker
     R (L (KillWorker i)) -> do
       wm <- gets @(WorkGroupState s ts) workMap
-      case IntMap.lookup i wm of
+      case Map.lookup i wm of
         Nothing -> do
           liftIO $ print $ "not found pid: " ++ show i
           pure ctx
@@ -391,18 +393,18 @@ instance (Algebra sig m, MonadIO m) => Algebra (Request s ts :+: Manager s :+: s
           pure ctx
     R (L GetAllWorker) -> do
       wm <- gets @(WorkGroupState s ts) workMap
-      pure (IntMap.keys wm <$ ctx)
+      pure (Map.keys wm <$ ctx)
     R (L GetAllInfo) -> do
       wm <- gets @(WorkGroupState s ts) workMap
-      ls <- liftIO $ IntMap.traverseWithKey (\_ ch -> state2info ch) wm
-      pure (IntMap.elems ls <$ ctx)
+      ls <- liftIO $ Map.traverseWithKey (\_ ch -> state2info ch) wm
+      pure (Map.elems ls <$ ctx)
     R (R signa) -> alg (unRequestC . hdl) (R signa) ctx
 
-initWorkGroupState :: TVar (IntMap (MVar Result)) -> WorkGroupState s ts
+initWorkGroupState :: TVar (Map NodeId (MVar Result)) -> WorkGroupState s ts
 initWorkGroupState terminateMap =
   WorkGroupState
-    { workMap = IntMap.empty,
-      counter = 0,
+    { workMap = Map.empty,
+      counter = NodeId 0,
       terminateMap = terminateMap
     }
 
@@ -412,7 +414,7 @@ runWithWorkGroup ::
   Labelled (serverName :: Symbol) (RequestC s ts) m a ->
   m a
 runWithWorkGroup f = do
-  tvar <- liftIO $ newTVarIO IntMap.empty
+  tvar <- liftIO $ newTVarIO Map.empty
   evalState @(WorkGroupState s ts) (initWorkGroupState tvar) $
     unRequestC $
       runLabelled f
@@ -420,7 +422,7 @@ runWithWorkGroup f = do
 runWithWorkGroup' ::
   forall serverName s ts m a.
   MonadIO m =>
-  TVar (IntMap (MVar Result)) ->
+  TVar (Map NodeId (MVar Result)) ->
   Labelled (serverName :: Symbol) (RequestC s ts) m a ->
   m a
 runWithWorkGroup' tvar f = do

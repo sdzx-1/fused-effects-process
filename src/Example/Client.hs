@@ -22,6 +22,7 @@ import Control.Monad.IO.Class (MonadIO (..))
 import qualified Data.List as L
 import Example.Type
 import Process.HasServer (HasServer, call, cast)
+import Process.Type (NodeId (..))
 import Text.Read (readMaybe)
 
 ------------------------ create client
@@ -57,7 +58,7 @@ client = forever $ do
         Just n -> do
           cast @"log" $ LD $ "input value is: " ++ show n
           -- cast @"s" $ StopProcess n
-          cast @"s" $ KillProcess n
+          cast @"s" $ KillProcess $ NodeId n
         Nothing -> do
           replicateM_ 200 $ cast @"s" Create
           cast @"log" $ LD "cast create "

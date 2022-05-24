@@ -80,12 +80,12 @@ newtype NodeId = NodeId Int deriving (Show, Eq, Ord)
 -- workGroup, Process State (Process -- Worker)
 data ProcessState s ts = ProcessState
   { pChan :: TChan (Sum s ts),
-    pid :: Int,
+    pid :: NodeId,
     tid :: ThreadId
   }
 
 data ProcessInfo = ProcessInfo
-  { ppid :: Int,
+  { ppid :: NodeId,
     ptid :: ThreadId,
     psize :: Int
   }
@@ -107,6 +107,9 @@ instance Show ProcessInfo where
 
 data Result = Result
   { terminateTime :: UTCTime,
-    rpid :: Int,
+    rpid :: NodeId,
     result :: Either SomeException ()
   }
+
+addOne :: NodeId -> NodeId
+addOne (NodeId i) = NodeId (i + 1)

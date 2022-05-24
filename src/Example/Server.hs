@@ -23,8 +23,8 @@ import Control.Carrier.State.Strict
   )
 import Control.Monad (forever, void)
 import Control.Monad.IO.Class (MonadIO (..))
-import Data.IntSet (IntSet)
 import qualified Data.IntSet as IntSet
+import Data.Set (Set)
 import Example.Metric
 import Example.Type
 import Example.Work
@@ -48,19 +48,21 @@ import Process.Metric
     inc,
     showMetric,
   )
+import Process.Type (NodeId)
 import Process.Util
   ( MessageChan,
     runWorkerWithChan,
     withResp,
     withThreeMessageChan,
   )
+import qualified Data.Set as Set
 
 -------------------------------------Manager - Work, Manager
 
 server ::
   ( MonadIO m,
     HasServer "log" SigLog '[Log] sig m,
-    Has (MessageChan SigLog :+: State IntSet :+: Metric Wmetric) sig m,
+    Has (MessageChan SigLog :+: State (Set NodeId) :+: Metric Wmetric) sig m,
     HasWorkGroup "w" SigCommand '[Stop, Info, ProcessStartTimeoutCheck, ProcessWork] sig m,
     Has (MessageChan SigTimeoutCheck :+: MessageChan SigException :+: MessageChan SigCreate) sig m
   ) =>
@@ -81,7 +83,7 @@ server =
                 sendAllCall @"w" ProcessStartTimeoutCheck
           SigTimeoutCheck2 (ProcessTimeout pid) -> do
             inc all_timeout
-            modify $ IntSet.insert pid
+            modify $ Set.insert pid
             cast @"log" $ LE $ "pid: " ++ show pid ++ " health check timeout!!!"
       )
       ( \case

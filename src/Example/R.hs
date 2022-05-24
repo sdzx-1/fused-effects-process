@@ -19,6 +19,9 @@ import Control.Monad (void)
 import qualified Data.IntMap as IntMap
 import Data.IntSet (IntSet)
 import qualified Data.IntSet as IntSet
+import qualified Data.Map as Map
+import Data.Set (Set)
+import qualified Data.Set as Set
 import Example.Client
 import Example.EOT
 import Example.Log
@@ -29,6 +32,7 @@ import Example.Type
 import Process.HasServer (runWithServer)
 import Process.HasWorkGroup
 import Process.Metric
+import Process.Type (NodeId)
 import Process.Util
 
 ----------------- run mProcess
@@ -41,7 +45,7 @@ runmProcess = do
   se <- newMessageChan @SigException
   sc <- newMessageChan @SigCreate
   slog <- newMessageChan @SigLog
-  tvar <- newTVarIO IntMap.empty
+  tvar <- newTVarIO Map.empty
   ftmvar <- newEmptyMVar @()
 
   print "fork log server"
@@ -80,7 +84,7 @@ runmProcess = do
             runWithServer @"log" slog $
               runReader slog $
                 runMetric @Wmetric $
-                  runState @IntSet IntSet.empty $
+                  runState @(Set NodeId) Set.empty $
                     runWithWorkGroup' @"w"
                       tvar
                       server

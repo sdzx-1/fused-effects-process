@@ -17,13 +17,14 @@ module Example.Type where
 import Control.Concurrent (MVar)
 import Control.Concurrent.STM (TMVar, TVar)
 import Control.Exception (SomeException)
-import Data.IntMap (IntMap)
-import Data.IntSet (IntSet)
+import Data.Map (Map)
+import Data.Set (Set)
 import qualified Data.Text.Builder.Linear as TLinear
 import Optics (makeLenses)
 import Process.TH (mkSigAndClass)
 import Process.Type
-  ( ProcessInfo,
+  ( NodeId,
+    ProcessInfo,
     RespVal,
     Result,
     ToList,
@@ -101,23 +102,23 @@ mkSigAndClass
 
 -------------------------------------eot server
 data ProcessR where
-  ProcessR :: Int -> (Either SomeException ()) -> ProcessR
+  ProcessR :: NodeId -> (Either SomeException ()) -> ProcessR
 
 mkSigAndClass "SigException" [''ProcessR]
 
 data EotConfig = EotConfig
   { einterval :: Int,
-    etMap :: TVar (IntMap (MVar Result))
+    etMap :: TVar (Map NodeId (MVar Result))
   }
 
 -------------------------------------process timeout checker
 data TimeoutCheckFinish = TimeoutCheckFinish
 
 data StartTimoutCheck where
-  StartTimoutCheck :: RespVal [(Int, TMVar TimeoutCheckFinish)] %1 -> StartTimoutCheck
+  StartTimoutCheck :: RespVal [(NodeId, TMVar TimeoutCheckFinish)] %1 -> StartTimoutCheck
 
 data ProcessTimeout where
-  ProcessTimeout :: Int -> ProcessTimeout
+  ProcessTimeout :: NodeId -> ProcessTimeout
 
 mkSigAndClass
   "SigTimeoutCheck"
@@ -131,7 +132,7 @@ newtype PtConfig = PtConfig
 
 -------------------------------------Manager - Work, Manager
 data Info where
-  Info :: RespVal (Int, String) %1 -> Info
+  Info :: RespVal (NodeId, String) %1 -> Info
 
 data ProcessStartTimeoutCheck where
   ProcessStartTimeoutCheck :: RespVal TimeoutCheckFinish %1 -> ProcessStartTimeoutCheck
@@ -151,22 +152,22 @@ data Create where
   Create :: Create
 
 data GetInfo where
-  GetInfo :: RespVal (Maybe [(Int, String)]) %1 -> GetInfo
+  GetInfo :: RespVal (Maybe [(NodeId, String)]) %1 -> GetInfo
 
 data StopProcess where
-  StopProcess :: Int -> StopProcess
+  StopProcess :: NodeId -> StopProcess
 
 data StopAll where
   StopAll :: StopAll
 
 data KillProcess where
-  KillProcess :: Int -> KillProcess
+  KillProcess :: NodeId -> KillProcess
 
 data Fwork where
   Fwork :: [IO ()] -> Fwork
 
 data ToSet where
-  ToSet :: RespVal IntSet -> ToSet
+  ToSet :: RespVal (Set NodeId) -> ToSet
 
 data GetProcessInfo where
   GetProcessInfo :: RespVal [ProcessInfo] %1 -> GetProcessInfo
@@ -189,7 +190,7 @@ mkSigAndClass
 
 -------------------------------------Manager - Work, Work
 newtype WorkInfo = WorkInfo
-  { workPid :: Int
+  { workPid :: NodeId
   }
 
 data TerminateProcess = TerminateProcess
