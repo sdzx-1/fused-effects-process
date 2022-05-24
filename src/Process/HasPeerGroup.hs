@@ -55,10 +55,10 @@ import Process.Type
     ToList,
     ToSig,
     inject,
+    NodeId
   )
 import Unsafe.Coerce (unsafeCoerce)
 
-newtype NodeId = NodeId Int deriving (Show, Eq, Ord)
 
 ---------------------------------------- api
 -- peerJoin

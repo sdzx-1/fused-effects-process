@@ -10,6 +10,7 @@
 module Process.Type where
 
 import Control.Concurrent (ThreadId)
+import Control.Concurrent.STM (TMVar)
 import Control.Exception (SomeException)
 import Data.Kind
   ( Constraint,
@@ -26,7 +27,6 @@ import GHC.TypeLits
     TypeError,
   )
 import Process.TChan
-import Control.Concurrent.STM (TMVar)
 
 type Sum :: (Type -> Type) -> [Type] -> Type
 data Sum f r where
@@ -74,6 +74,8 @@ type family Elems (name :: Symbol) (ls :: [Type]) (ts :: [Type]) :: Constraint w
 -- call response
 data RespVal a where
   RespVal :: TMVar a -> RespVal a
+
+newtype NodeId = NodeId Int deriving (Show, Eq, Ord)
 
 -- workGroup, Process State (Process -- Worker)
 data ProcessState s ts = ProcessState

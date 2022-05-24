@@ -39,7 +39,6 @@ import qualified Data.Map as Map
 import qualified Data.Typeable as T
 import Process.HasPeerGroup
   ( HasPeerGroup,
-    NodeId (NodeId),
     callAll,
     getChan,
     runWithPeers,
@@ -47,7 +46,7 @@ import Process.HasPeerGroup
 import Process.Metric (Metric, inc, putVal, runMetric)
 import Process.TChan (TChan, readTChan)
 import Process.Timer (Timeout, newTimeout, waitTimeout)
-import Process.Type (Some (..))
+import Process.Type (NodeId (..), Some (..))
 import Process.Util
 import Raft.Metric
 import Raft.Type
@@ -122,7 +121,9 @@ t1 = forever $ do
     Candidate -> do
       callAll @"peer" $
         RequestVote $
-          Vote { vterm = 0, candidateId = NodeId 1,
+          Vote
+            { vterm = 0,
+              candidateId = NodeId 1,
               lastLogIndex = 0,
               lastLogTerm = 0
             }

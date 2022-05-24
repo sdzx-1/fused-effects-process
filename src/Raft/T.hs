@@ -35,7 +35,6 @@ import Control.Monad.IO.Class (MonadIO (..))
 import qualified Data.Map as Map
 import Process.HasPeerGroup
   ( HasPeerGroup,
-    NodeId (NodeId),
     NodeState (..),
     callAll,
     callById,
