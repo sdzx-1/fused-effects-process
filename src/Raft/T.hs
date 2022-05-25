@@ -64,8 +64,11 @@ data Log where
 data Cal where
   Cal :: Cal
 
+data CS where
+  CS :: String -> CS
+
 data Status where
-  Status :: RespVal (NodeId, Role) %1 -> Status
+  Status :: RespVal (NodeId, Role, [(String, Int)]) %1 -> Status
 
 mkSigAndClass
   "SigStatus"
@@ -75,7 +78,8 @@ mkSigAndClass
 mkSigAndClass
   "SigLog"
   [ ''Log,
-    ''Cal
+    ''Cal,
+    ''CS
   ]
 
 mkSigAndClass
@@ -86,7 +90,15 @@ mkSigAndClass
 
 mkMetric
   "LogMet"
-  [ "all_log"
+  [ "all_log",
+    "all_all"
+  ]
+
+mkMetric
+  "NodeMet"
+  [ "all_a",
+    "all_b",
+    "all_c"
   ]
 
 log ::
@@ -98,20 +110,25 @@ log ::
 log = forever $ do
   withMessageChan @SigLog \case
     SigLog1 (Log _) -> do
+      inc all_all
       inc all_log
     SigLog2 Cal -> do
       val <- getVal all_log
-      liftIO $ print val
+      all <- getVal all_all
+      liftIO $ print (val, all)
       putVal all_log 0
+    SigLog3 (CS s) -> do
+      liftIO $ putStrLn s
 
 t00 ::
   ( MonadIO m,
+    HasServer "log" SigLog '[CS] sig m,
     HasServer "status" SigStatus '[Status] sig m
   ) =>
   m ()
 t00 = do
   val <- call @"status" $ Status
-  liftIO $ print val
+  cast @"log" $ CS $ show val
   liftIO $ threadDelay 100_000
 
 t0 ::
@@ -126,20 +143,24 @@ t0 = forever $ do
 t1 ::
   ( MonadIO m,
     Has (State Role) sig m,
+    Has (Metric NodeMet) sig m,
     Has (MessageChan SigStatus) sig m,
     HasServer "log" SigLog '[Log] sig m,
     HasPeerGroup "peer" SigRPC '[CallMsg, ChangeMaster] sig m
   ) =>
   m ()
 t1 = forever $ do
+  inc all_a
   handleFlushMsgs @SigStatus $ \case
     SigStatus1 (Status resp) -> withResp resp $ do
       r <- get
       nid <- getNodeId @"peer"
-      pure (nid, r)
+      st <- getAll @NodeMet
+      pure (nid, r, st)
 
   get @Role >>= \case
     Master -> do
+      inc all_b
       res <- callAll @"peer" $ CallMsg
       vals <- forM res $ \(a, b) -> do
         val <- liftIO $ atomically $ readTMVar b
@@ -148,6 +169,7 @@ t1 = forever $ do
       callById @"peer" mnid ChangeMaster
       put Slave
     Slave -> do
+      inc all_c
       handleMsg @"peer" $ \case
         SigRPC1 (CallMsg rsp) -> withResp rsp $ do
           liftIO $ randomRIO @Int (1, 1_000_000)
@@ -171,7 +193,8 @@ r1 = do
     void $
       forever $ do
         forM_ hhs $ \(_, sv) -> do
-          runWithServer @"status" sv t00
+          runWithServer @"log" logChan $
+            runWithServer @"status" sv t00
 
   forkIO $
     void $
@@ -187,7 +210,8 @@ r1 = do
       runWithServer @"log" logChan $
         runServerWithChan (snd h) $
           runWithPeers' @"peer" (fst h) $
-            runState Master t1
+            runMetric @NodeMet $
+              runState Master t1
 
   forM_ hs $ \h' -> do
     forkIO $
@@ -195,7 +219,8 @@ r1 = do
         runWithServer @"log" logChan $
           runServerWithChan (snd h') $
             runWithPeers' @"peer" (fst h') $
-              runState Slave t1
+              runMetric @NodeMet $
+                runState Slave t1
 
   forever $ do
     threadDelay 10_000_000
