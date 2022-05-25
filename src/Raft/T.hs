@@ -129,7 +129,7 @@ t00 ::
 t00 = do
   val <- call @"status" $ Status
   cast @"log" $ CS $ show val
-  liftIO $ threadDelay 100_000
+  liftIO $ threadDelay 440_000
 
 t0 ::
   ( MonadIO m,

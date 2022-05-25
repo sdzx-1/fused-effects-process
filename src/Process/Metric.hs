@@ -48,14 +48,14 @@ import Data.Data (Proxy (..))
 import Data.Default.Class (Default (..))
 import Data.Kind (Type)
 import qualified Data.Vector as V
-import Data.Vector.Mutable
+import Data.Vector.Unboxed.Mutable
   ( IOVector,
     replicate,
     unsafeModify,
     unsafeRead,
     unsafeWrite,
   )
-import qualified Data.Vector.Mutable as M
+import qualified Data.Vector.Unboxed.Mutable as M
 import GHC.TypeLits
   ( KnownNat,
     Nat,
