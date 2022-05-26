@@ -69,9 +69,11 @@ data K s where
 
 toi :: forall s. (KnownNat s) => K s -> Int
 toi _ = fromIntegral $ natVal (Proxy :: Proxy s)
+{-# INLINE toi #-}
 
 get :: (KnownNat s, Default a) => (a -> K s) -> Int
 get v1 = toi . v1 $ def
+{-# INLINE get #-}
 
 class Vlength a where
   vlength :: a -> Int
@@ -86,18 +88,23 @@ fun ::
   (Int -> Int) ->
   IO ()
 fun v idx f = unsafeModify v f (get idx)
+{-# INLINE fun #-}
 
 gv :: (KnownNat s, Default a) => IOVector Int -> (a -> K s) -> IO Int
 gv v idx = unsafeRead v (get idx)
+{-# INLINE gv #-}
 
 pv :: (KnownNat s, Default a) => IOVector Int -> (a -> K s) -> Int -> IO ()
 pv v idx = unsafeWrite v (get idx)
+{-# INLINE pv #-}
 
 inc1 :: (KnownNat s, Default a) => IOVector Int -> (a -> K s) -> IO ()
 inc1 v idx = fun v idx (+ 1)
+{-# INLINE inc1 #-}
 
 dec1 :: (KnownNat s, Default a) => IOVector Int -> (a -> K s) -> IO ()
 dec1 v idx = fun v idx (\x -> x - 1)
+{-# INLINE dec1 #-}
 
 type Metric :: Type -> (Type -> Type) -> Type -> Type
 data Metric v m a where
@@ -109,18 +116,23 @@ data Metric v m a where
 
 inc :: (Has (Metric v) sig m, KnownNat s) => (v -> K s) -> m ()
 inc g = send (Inc g)
+{-# INLINE inc #-}
 
 dec :: (Has (Metric v) sig m, KnownNat s) => (v -> K s) -> m ()
 dec g = send (Dec g)
+{-# INLINE dec #-}
 
 getVal :: (Has (Metric v) sig m, KnownNat s) => (v -> K s) -> m Int
 getVal g = send (GetVal g)
+{-# INLINE getVal #-}
 
 putVal :: (Has (Metric v) sig m, KnownNat s) => (v -> K s) -> Int -> m ()
 putVal g v = send (PutVal g v)
+{-# INLINE putVal #-}
 
 getAll :: forall v sig m. Has (Metric v) sig m => m [(String, Int)]
 getAll = send (GetAll @v)
+{-# INLINE getAll #-}
 
 newtype MetriC v m a = MetriC {unMetric :: ReaderC (IOVector Int) m a}
   deriving (Functor, Applicative, Monad, MonadIO)
@@ -147,12 +159,14 @@ instance
         v <- liftIO $ M.ifoldr' (\i a b -> (vName @v undefined V.! i, a) : b) [] iov
         pure (v <$ ctx)
       R signa -> alg (runReader iov . unMetric . hdl) signa ctx
+  {-# INLINE alg #-}
 
 runMetric ::
   forall v m a. (MonadIO m, Default v, Vlength v) => MetriC v m a -> m a
 runMetric f = do
   v <- liftIO creatVec
   runMetricWith v f
+{-# INLINE runMetric #-}
 
 data Vec v = Vec v (IOVector Int)
 
@@ -160,11 +174,14 @@ creatVec :: forall v. (Vlength v, Default v) => IO (Vec v)
 creatVec = do
   iov <- replicate (vlength @v undefined) 0
   pure (Vec def iov)
+{-# INLINE creatVec #-}
 
 runMetricWith :: forall v m a. (MonadIO m) => Vec v -> MetriC v m a -> m a
 runMetricWith (Vec _ iov) f = runReader iov $ unMetric f
+{-# INLINE runMetricWith #-}
 
 showMetric :: [(String, Int)] -> String
 showMetric [] = []
 showMetric ((name, val) : xs) =
   name ++ ": " ++ show val ++ "\n" ++ showMetric xs
+{-# INLINE showMetric #-}

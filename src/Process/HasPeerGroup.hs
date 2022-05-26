@@ -49,21 +49,21 @@ import Process.TChan (TChan, newTChanIO, writeTChan)
 import Process.Type
   ( Elem,
     Elems,
+    NodeId,
     RespVal (..),
     Some,
     Sum (..),
     ToList,
     ToSig,
     inject,
-    NodeId
   )
 import Unsafe.Coerce (unsafeCoerce)
-
 
 ---------------------------------------- api
 -- peerJoin
 -- peerLeave
 -- callPeer :: NodeId -> Message -> m RespVal
+
 -- callPeers :: Message -> m [RespVal]
 -- castPeer :: NodeId -> Message -> m ()
 -- castPeers :: Message -> m ()
@@ -95,6 +95,7 @@ getPeersNodeId ::
   ) =>
   m [NodeId]
 getPeersNodeId = sendLabelled @peerName GetPeersNodeId
+{-# INLINE getPeersNodeId #-}
 
 getNodeId ::
   forall (peerName :: Symbol) s ts sig m.
@@ -102,6 +103,7 @@ getNodeId ::
   ) =>
   m NodeId
 getNodeId = sendLabelled @peerName GetNodeId
+{-# INLINE getNodeId #-}
 
 getChan ::
   forall (peerName :: Symbol) s ts sig m.
@@ -109,6 +111,7 @@ getChan ::
   ) =>
   m (TChan (Some s))
 getChan = sendLabelled @peerName GetChan
+{-# INLINE getChan #-}
 
 leave ::
   forall (peerName :: Symbol) s ts sig m.
@@ -117,6 +120,7 @@ leave ::
   NodeId ->
   m ()
 leave i = sendLabelled @peerName (Leave i)
+{-# INLINE leave #-}
 
 join ::
   forall (peerName :: Symbol) s ts sig m.
@@ -126,6 +130,7 @@ join ::
   TChan (Sum s ts) ->
   m ()
 join i t = sendLabelled @peerName (Join i t)
+{-# INLINE join #-}
 
 peerSize ::
   forall (peerName :: Symbol) s ts sig m.
@@ -133,6 +138,7 @@ peerSize ::
   ) =>
   m Int
 peerSize = sendLabelled @peerName PeerSize
+{-# INLINE peerSize #-}
 
 sendReq ::
   forall (peerName :: Symbol) s ts sig m t.
@@ -144,6 +150,7 @@ sendReq ::
   t ->
   m ()
 sendReq i t = sendLabelled @peerName (SendMessage i t)
+{-# INLINE sendReq #-}
 
 callById ::
   forall peerName s ts sig m e b.
@@ -159,6 +166,7 @@ callById i f = do
   mvar <- liftIO newEmptyTMVarIO
   sendReq @peerName i (f $ RespVal mvar)
   liftIO $ atomically $ takeTMVar mvar
+{-# INLINE callById #-}
 
 castById ::
   forall peerName s ts sig m e.
@@ -171,6 +179,7 @@ castById ::
   e ->
   m ()
 castById = sendReq @peerName
+{-# INLINE castById #-}
 
 callAll ::
   forall (peerName :: Symbol) s ts sig m t b.
@@ -182,6 +191,7 @@ callAll ::
   (RespVal b -> t) ->
   m [(NodeId, TMVar b)]
 callAll t = sendLabelled @peerName (SendAllCall t)
+{-# INLINE callAll #-}
 
 type NodeState :: (Type -> Type) -> [Type] -> Type
 data NodeState s ts = NodeState
@@ -239,10 +249,12 @@ instance
       NodeState {peers} <- get @(NodeState s ts)
       pure (Map.keys peers <$ ctx)
     R signa -> alg (unPeerActionC . hdl) (R signa) ctx
+  {-# INLINE alg #-}
 
 initNodeState :: NodeId -> IO (NodeState s ts)
 initNodeState nid = do
   NodeState nid Map.empty <$> newTChanIO
+{-# INLINE initNodeState #-}
 
 runWithPeers ::
   forall peerName s ts m a.
@@ -254,6 +266,7 @@ runWithPeers nid f = do
   ins <- liftIO $ initNodeState nid
   evalState @(NodeState s ts) ins $
     unPeerActionC $ runLabelled f
+{-# INLINE runWithPeers #-}
 
 runWithPeers' ::
   forall peerName s ts m a.
@@ -262,3 +275,4 @@ runWithPeers' ::
   Labelled (peerName :: Symbol) (PeerActionC s ts) m a ->
   m a
 runWithPeers' ns f = evalState ns $ unPeerActionC $ runLabelled f
+{-# INLINE runWithPeers' #-}

@@ -127,6 +127,7 @@ sendReq ::
   t ->
   m ()
 sendReq i t = sendLabelled @serverName (SendReq i t)
+{-# INLINE sendReq #-}
 
 sendAllCall ::
   forall (serverName :: Symbol) s ts sig m t b.
@@ -137,6 +138,7 @@ sendAllCall ::
   (RespVal b -> t) ->
   m [(NodeId, TMVar b)]
 sendAllCall t = sendLabelled @serverName (SendAllCall t)
+{-# INLINE sendAllCall #-}
 
 sendAllCast ::
   forall (serverName :: Symbol) s ts sig m t.
@@ -147,6 +149,7 @@ sendAllCast ::
   t ->
   m ()
 sendAllCast t = sendLabelled @serverName (SendAllCast t)
+{-# INLINE sendAllCast #-}
 
 callById ::
   forall serverName s ts sig m e b.
@@ -162,6 +165,7 @@ callById i f = do
   mvar <- liftIO newEmptyTMVarIO
   sendReq @serverName i (f $ RespVal mvar)
   liftIO $ atomically $ takeTMVar mvar
+{-# INLINE callById #-}
 
 data Reset
   = ResetWorker [NodeId]
@@ -199,6 +203,7 @@ sendWorks works f = do
     sendReq @serverName wid (f work $ RespVal mvar)
     pure (wid, mvar)
   pure (t, rest)
+{-# INLINE sendWorks #-}
 
 callAll ::
   forall (serverName :: Symbol) s ts sig m t b.
@@ -212,6 +217,7 @@ callAll ::
 callAll t = do
   vs <- sendLabelled @serverName (SendAllCall t)
   mapM (liftIO . atomically . takeTMVar . snd) vs
+{-# INLINE callAll #-}
 
 timeoutCallAll ::
   forall (serverName :: Symbol) s ts sig m t b.
@@ -226,6 +232,7 @@ timeoutCallAll ::
 timeoutCallAll tot t = do
   vs <- sendLabelled @serverName (SendAllCall t)
   liftIO $ timeout tot $ mapM (atomically . takeTMVar . snd) vs
+{-# INLINE timeoutCallAll #-}
 
 mcall ::
   forall serverName s ts sig m e b.
@@ -242,6 +249,7 @@ mcall is f = do
     mvar <- liftIO newEmptyMVar
     _ <- sendReq @serverName idx (f mvar)
     liftIO $ takeMVar mvar
+{-# INLINE mcall #-}
 
 castById ::
   forall serverName s ts sig m e.
@@ -255,6 +263,7 @@ castById ::
   m ()
 castById i f = do
   sendReq @serverName i f
+{-# INLINE castById #-}
 
 castAll ::
   forall (serverName :: Symbol) s ts sig m t.
@@ -266,6 +275,7 @@ castAll ::
   t ->
   m ()
 castAll t = sendLabelled @serverName (SendAllCast t)
+{-# INLINE castAll #-}
 
 mcast ::
   forall serverName s ts sig m e.
@@ -278,6 +288,7 @@ mcast ::
   e ->
   m ()
 mcast is f = mapM_ (\x -> castById @serverName x f) is
+{-# INLINE mcast #-}
 
 createWorker ::
   forall s sig m.
@@ -285,26 +296,32 @@ createWorker ::
   (NodeId -> TChan (Some s) -> IO ()) ->
   m ()
 createWorker fun = send (CreateWorker fun)
+{-# INLINE createWorker #-}
 
 deleteChan ::
   forall s sig m. (MonadIO m, Has (Manager s) sig m) => NodeId -> m ()
 deleteChan i = send (DeleteChannel @s i)
+{-# INLINE deleteChan #-}
 
 clearTVar ::
   forall s sig m. (MonadIO m, Has (Manager s) sig m) => NodeId -> m ()
 clearTVar i = send (ClearTVar @s i)
+{-# INLINE clearTVar #-}
 
 killWorker ::
   forall s sig m. (MonadIO m, Has (Manager s) sig m) => NodeId -> m ()
 killWorker i = send (KillWorker @s i)
+{-# INLINE killWorker #-}
 
 getAllWorker ::
   forall s sig m. (MonadIO m, Has (Manager s) sig m) => m [NodeId]
 getAllWorker = send (GetAllWorker @s)
+{-# INLINE getAllWorker #-}
 
 getAllInfo ::
   forall s sig m. (MonadIO m, Has (Manager s) sig m) => m [ProcessInfo]
 getAllInfo = send (GetAllInfo @s)
+{-# INLINE getAllInfo #-}
 
 data WorkGroupState s ts = WorkGroupState
   { workMap :: Map NodeId (ProcessState s ts),
@@ -399,6 +416,7 @@ instance (Algebra sig m, MonadIO m) => Algebra (Request s ts :+: Manager s :+: s
       ls <- liftIO $ Map.traverseWithKey (\_ ch -> state2info ch) wm
       pure (Map.elems ls <$ ctx)
     R (R signa) -> alg (unRequestC . hdl) (R signa) ctx
+  {-# INLINE alg #-}
 
 initWorkGroupState :: TVar (Map NodeId (MVar Result)) -> WorkGroupState s ts
 initWorkGroupState terminateMap =
@@ -407,6 +425,7 @@ initWorkGroupState terminateMap =
       counter = NodeId 0,
       terminateMap = terminateMap
     }
+{-# INLINE initWorkGroupState #-}
 
 runWithWorkGroup ::
   forall serverName s ts m a.
@@ -418,6 +437,7 @@ runWithWorkGroup f = do
   evalState @(WorkGroupState s ts) (initWorkGroupState tvar) $
     unRequestC $
       runLabelled f
+{-# INLINE runWithWorkGroup #-}
 
 runWithWorkGroup' ::
   forall serverName s ts m a.
@@ -429,3 +449,4 @@ runWithWorkGroup' tvar f = do
   evalState @(WorkGroupState s ts) (initWorkGroupState tvar) $
     unRequestC $
       runLabelled f
+{-# INLINE runWithWorkGroup' #-}

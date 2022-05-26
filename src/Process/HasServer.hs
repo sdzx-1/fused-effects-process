@@ -76,6 +76,7 @@ sendReq ::
   t ->
   m ()
 sendReq t = sendLabelled @serverName (SendReq t)
+{-# INLINE sendReq #-}
 
 call ::
   forall serverName s ts sig m e b.
@@ -90,6 +91,7 @@ call f = do
   mvar <- liftIO newEmptyTMVarIO
   sendReq @serverName (f $ RespVal mvar)
   liftIO $ atomically $ takeTMVar mvar
+{-# INLINE call #-}
 
 timeoutCall ::
   forall serverName s ts sig m e b.
@@ -105,6 +107,7 @@ timeoutCall tot f = do
   mvar <- liftIO newEmptyTMVarIO
   sendReq @serverName (f $ RespVal mvar)
   liftIO $ timeout tot $ atomically $ takeTMVar mvar
+{-# INLINE timeoutCall #-}
 
 cast ::
   forall serverName s ts sig m e.
@@ -118,6 +121,7 @@ cast ::
 cast f = do
   -- liftIO $ putStrLn "send cast"
   sendReq @serverName f
+{-# INLINE cast #-}
 
 newtype RequestC s ts m a = RequestC {unRequestC :: ReaderC (TChan (Sum s ts)) m a}
   deriving (Functor, Applicative, Monad, MonadIO)
@@ -129,6 +133,7 @@ instance (Algebra sig m, MonadIO m) => Algebra (Request s ts :+: sig) (RequestC 
         liftIO $ atomically $ writeTChan c (inject t)
         pure ctx
       R signa -> alg (runReader c . unRequestC . hdl) signa ctx
+  {-# INLINE alg #-}
 
 -- client
 runWithServer ::
@@ -138,3 +143,4 @@ runWithServer ::
   m a
 runWithServer chan f =
   runReader (unsafeCoerce chan) $ unRequestC $ runLabelled f
+{-# INLINE runWithServer #-}

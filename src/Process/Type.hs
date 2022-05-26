@@ -41,6 +41,7 @@ class ToSig a b where
 
 inject :: ToSig e f => e -> Sum f r
 inject = Sum . toSig
+{-# INLINE inject #-}
 
 type family ToList (a :: (Type -> Type)) :: [Type]
 
@@ -113,3 +114,4 @@ data Result = Result
 
 addOne :: NodeId -> NodeId
 addOne (NodeId i) = NodeId (i + 1)
+{-# INLINE addOne #-}
