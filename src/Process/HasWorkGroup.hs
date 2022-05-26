@@ -89,7 +89,6 @@ import Process.Type
     state2info,
   )
 import System.Timeout (timeout)
-import Unsafe.Coerce (unsafeCoerce)
 
 type HasWorkGroup (serverName :: Symbol) s ts sig m =
   ( Elems serverName ts (ToList s),
@@ -323,12 +322,14 @@ getAllInfo ::
 getAllInfo = send (GetAllInfo @s)
 {-# INLINE getAllInfo #-}
 
+type WorkGroupState :: (Type -> Type) -> [Type] -> Type
 data WorkGroupState s ts = WorkGroupState
   { workMap :: Map NodeId (ProcessState s ts),
     counter :: NodeId,
     terminateMap :: TVar (Map NodeId (MVar Result))
   }
 
+type RequestC :: (Type -> Type) -> [Type] ->  (Type -> Type) -> Type -> Type
 newtype RequestC s ts m a = RequestC {unRequestC :: StateC (WorkGroupState s ts) m a}
   deriving (Functor, Applicative, Monad, MonadIO)
 
@@ -378,7 +379,7 @@ instance (Algebra sig m, MonadIO m) => Algebra (Request s ts :+: Manager s :+: s
 
       -- update workMap
       let newcounter = addOne counter
-          newmap = Map.insert counter (ProcessState (unsafeCoerce chan) counter tid) workMap
+          newmap = Map.insert counter (ProcessState chan counter tid) workMap
       put state {workMap = newmap, counter = newcounter}
 
       pure ctx

@@ -45,13 +45,11 @@ import Process.Type
     Elems,
     RespVal (..),
     Some (..),
-    Sum,
     ToList,
     ToSig,
     inject,
   )
 import System.Timeout (timeout)
-import Unsafe.Coerce (unsafeCoerce)
 
 type HasServer (serverName :: Symbol) s ts sig m =
   ( Elems serverName ts (ToList s),
@@ -119,11 +117,11 @@ cast ::
   e ->
   m ()
 cast f = do
-  -- liftIO $ putStrLn "send cast"
   sendReq @serverName f
 {-# INLINE cast #-}
 
-newtype RequestC s ts m a = RequestC {unRequestC :: ReaderC (TChan (Sum s ts)) m a}
+type RequestC :: (Type -> Type) -> [Type] -> (Type -> Type) -> Type -> Type
+newtype RequestC s ts m a = RequestC {unRequestC :: ReaderC (TChan (Some s)) m a}
   deriving (Functor, Applicative, Monad, MonadIO)
 
 instance (Algebra sig m, MonadIO m) => Algebra (Request s ts :+: sig) (RequestC s ts m) where
@@ -142,5 +140,5 @@ runWithServer ::
   Labelled (serverName :: Symbol) (RequestC s ts) m a ->
   m a
 runWithServer chan f =
-  runReader (unsafeCoerce chan) $ unRequestC $ runLabelled f
+  runReader chan $ unRequestC $ runLabelled f
 {-# INLINE runWithServer #-}

@@ -16,9 +16,6 @@ import Control.Concurrent (forkIO, takeMVar)
 import Control.Concurrent.MVar (newEmptyMVar)
 import Control.Concurrent.STM (newTVarIO)
 import Control.Monad (void)
-import qualified Data.IntMap as IntMap
-import Data.IntSet (IntSet)
-import qualified Data.IntSet as IntSet
 import qualified Data.Map as Map
 import Data.Set (Set)
 import qualified Data.Set as Set

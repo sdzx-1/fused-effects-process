@@ -34,13 +34,13 @@ data Sum f r where
 
 type Some :: (Type -> Type) -> Type
 data Some f where
-  Some :: f a -> Some f
+  Some :: Sum f r -> Some f
 
 class ToSig a b where
   toSig :: a -> b a
 
-inject :: ToSig e f => e -> Sum f r
-inject = Sum . toSig
+inject :: ToSig e f => e -> Some f
+inject = Some . Sum . toSig
 {-# INLINE inject #-}
 
 type family ToList (a :: (Type -> Type)) :: [Type]
@@ -72,15 +72,14 @@ type family Elems (name :: Symbol) (ls :: [Type]) (ts :: [Type]) :: Constraint w
   Elems name (l ': ls) ts = (ElemO name l ts, Elems name ls ts)
   Elems name '[] ts = ()
 
--- call response
 data RespVal a where
   RespVal :: TMVar a -> RespVal a
 
 newtype NodeId = NodeId Int deriving (Show, Eq, Ord)
 
--- workGroup, Process State (Process -- Worker)
+type ProcessState :: (Type -> Type) -> [Type] -> Type
 data ProcessState s ts = ProcessState
-  { pChan :: TChan (Sum s ts),
+  { pChan :: TChan (Some s),
     pid :: NodeId,
     tid :: ThreadId
   }

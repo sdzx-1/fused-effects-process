@@ -23,7 +23,6 @@ import Control.Carrier.State.Strict
   )
 import Control.Monad (forever, void)
 import Control.Monad.IO.Class (MonadIO (..))
-import qualified Data.IntSet as IntSet
 import Data.Set (Set)
 import Example.Metric
 import Example.Type

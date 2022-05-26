@@ -52,12 +52,10 @@ import Process.Type
     NodeId,
     RespVal (..),
     Some,
-    Sum (..),
     ToList,
     ToSig,
     inject,
   )
-import Unsafe.Coerce (unsafeCoerce)
 
 ---------------------------------------- api
 -- peerJoin
@@ -76,7 +74,7 @@ type HasPeerGroup (peerName :: Symbol) s ts sig m =
 type PeerAction :: (Type -> Type) -> [Type] -> (Type -> Type) -> Type -> Type
 data PeerAction s ts m a where
   ------- action
-  Join :: NodeId -> TChan (Sum s ts) -> PeerAction s ts m ()
+  Join :: NodeId -> TChan (Some s) -> PeerAction s ts m ()
   Leave :: NodeId -> PeerAction s ts m ()
   PeerSize :: PeerAction s ts m Int
   ------- info
@@ -127,7 +125,7 @@ join ::
   ( HasLabelled peerName (PeerAction s ts) sig m
   ) =>
   NodeId ->
-  TChan (Sum s ts) ->
+  TChan (Some s) ->
   m ()
 join i t = sendLabelled @peerName (Join i t)
 {-# INLINE join #-}
@@ -196,8 +194,8 @@ callAll t = sendLabelled @peerName (SendAllCall t)
 type NodeState :: (Type -> Type) -> [Type] -> Type
 data NodeState s ts = NodeState
   { nodeId :: NodeId,
-    peers :: Map NodeId (TChan (Sum s ts)),
-    nodeChan :: TChan (Sum s ts)
+    peers :: Map NodeId (TChan (Some s)),
+    nodeChan :: TChan (Some s)
   }
 
 newtype PeerActionC s ts m a = PeerActionC {unPeerActionC :: StateC (NodeState s ts) m a}
@@ -210,11 +208,11 @@ instance
   alg hdl sig ctx = PeerActionC $ case sig of
     L (Join nid tc) -> do
       ps@NodeState {peers} <- get @(NodeState s ts)
-      put (ps {peers = Map.insert nid tc peers})
+      put @(NodeState s ts) (ps {peers = Map.insert nid tc peers})
       pure ctx
     L (Leave nid) -> do
       ps@NodeState {peers} <- get @(NodeState s ts)
-      put (ps {peers = Map.delete nid peers})
+      put @(NodeState s ts) (ps {peers = Map.delete nid peers})
       pure ctx
     L PeerSize -> do
       NodeState {peers} <- get @(NodeState s ts)
@@ -241,7 +239,7 @@ instance
       pure ctx
     L GetChan -> do
       NodeState {nodeChan} <- get @(NodeState s ts)
-      pure (unsafeCoerce nodeChan <$ ctx)
+      pure (nodeChan <$ ctx)
     L GetNodeId -> do
       NodeState {nodeId} <- get @(NodeState s ts)
       pure (nodeId <$ ctx)
