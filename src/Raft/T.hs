@@ -23,7 +23,6 @@ import Control.Algebra (Has)
 import Control.Carrier.State.Strict
   ( State,
     get,
-    modify,
     put,
     runState,
   )
