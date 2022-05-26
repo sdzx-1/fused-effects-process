@@ -1,6 +1,9 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeApplications #-}
 
 module Process.TH
   ( mkSigAndClass,
@@ -16,12 +19,16 @@ import Language.Haskell.TH
     Body (NormalB),
     Clause (Clause),
     Con (GadtC, RecC),
-    Dec (DataD, FunD, InstanceD, TySynInstD, ValD),
+    Dec (DataD, FunD, InstanceD, PragmaD, TySynInstD, ValD),
     Exp (AppE, ConE, ListE, LitE, VarE),
+    Inline (Inline),
     Lit (IntegerL, StringL),
     Name,
     Pat (VarP, WildP),
+    Phases (AllPhases),
+    Pragma (InlineP),
     Q,
+    RuleMatch (FunLike),
     SourceStrictness (NoSourceStrictness),
     SourceUnpackedness (NoSourceUnpackedness),
     TyLit (NumTyLit),
@@ -78,7 +85,8 @@ mkClass sname gs = do
                         )
                     )
                     []
-                ]
+                ],
+              PragmaD (InlineP method Inline FunLike AllPhases)
             ]
           | (idx, g1) <- zip [1 ..] gs
         ]
@@ -129,7 +137,7 @@ mkMetric bn ls = do
           Nothing
           []
           (AppT (ConT classTypeDef) (ConT contTypeV))
-          [mDec]
+          [mDec, PragmaD (InlineP methodDef Inline FunLike AllPhases)]
       mDec = ValD (VarP methodDef) (NormalB aal) []
 
       iDec1 =
@@ -137,7 +145,7 @@ mkMetric bn ls = do
           Nothing
           []
           (AppT (ConT classTypeLen) (ConT contTypeV))
-          [iFun]
+          [iFun, PragmaD (InlineP methodVlen Inline FunLike AllPhases)]
       iFun =
         FunD
           methodVlen
@@ -165,7 +173,8 @@ mkMetric bn ls = do
                       )
                   )
                   []
-              ]
+              ],
+            PragmaD (InlineP methodVName Inline FunLike AllPhases)
           ]
 
   kType <- fromJust <$> lookupTypeName "K"
