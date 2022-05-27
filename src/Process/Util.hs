@@ -30,7 +30,7 @@ import Control.Monad (forM_, when)
 import Control.Monad.IO.Class (MonadIO (..))
 import Process.HasPeerGroup
 import Process.TChan (TChan, flushTQueue, newTChanIO, readTChan)
-import Process.Type (RespVal (..), Some (..), Sum (Sum))
+import Process.Type (RespVal (..), Some (..))
 
 type MessageChan f = Reader (TChan (Some f))
 
@@ -53,7 +53,7 @@ handleFlushMsgs ::
 handleFlushMsgs f = do
   tc <- ask @(TChan (Some f))
   vals <- liftIO $ atomically $ flushTQueue tc
-  forM_ vals $ \(Some (Sum v)) -> f v
+  forM_ vals $ \(Some v) -> f v
 {-# INLINE handleFlushMsgs #-}
 
 -- server
@@ -64,7 +64,7 @@ withMessageChan ::
   m ()
 withMessageChan f = do
   tc <- ask @(TChan (Some f))
-  Some (Sum v) <- liftIO $ atomically $ readTChan tc
+  Some v <- liftIO $ atomically $ readTChan tc
   f v
 {-# INLINE withMessageChan #-}
 
@@ -75,7 +75,7 @@ readMessageChan ::
   (forall s. f s %1 -> m ()) ->
   m ()
 readMessageChan tc f = do
-  Some (Sum v) <- liftIO $ atomically $ readTChan tc
+  Some v <- liftIO $ atomically $ readTChan tc
   f v
 {-# INLINE readMessageChan #-}
 
@@ -107,8 +107,8 @@ withTwoMessageChan f1 f2 = do
   f <- ask @(TChan (Some f))
   g <- ask @(TChan (Some g))
   liftIO (atomically (waitEither f g)) >>= \case
-    Left (Some (Sum so)) -> f1 so
-    Right (Some (Sum so)) -> f2 so
+    Left (Some so) -> f1 so
+    Right (Some so) -> f2 so
 {-# INLINE withTwoMessageChan #-}
 
 data Three a b c = T1 a | T2 b | T3 c
@@ -140,9 +140,9 @@ withThreeMessageChan f1 f2 f3 = do
   g <- ask @(TChan (Some g))
   l <- ask @(TChan (Some l))
   liftIO (atomically (waitTEither f g l)) >>= \case
-    T1 (Some (Sum so)) -> f1 so
-    T2 (Some (Sum so)) -> f2 so
-    T3 (Some (Sum so)) -> f3 so
+    T1 (Some so) -> f1 so
+    T2 (Some so) -> f2 so
+    T3 (Some so) -> f3 so
 {-# INLINE withThreeMessageChan #-}
 
 newMessageChan :: forall f. IO (TChan (Some f))
@@ -164,7 +164,7 @@ handleMsg ::
   m ()
 handleMsg f = do
   chan <- getChan @peerName
-  Some (Sum tc) <- liftIO $ atomically $ readTChan chan
+  Some tc <- liftIO $ atomically $ readTChan chan
   f tc
 {-# INLINE handleMsg #-}
 

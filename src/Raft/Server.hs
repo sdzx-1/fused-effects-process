@@ -46,7 +46,7 @@ import Process.HasPeerGroup
 import Process.Metric (Metric, inc, putVal, runMetric)
 import Process.TChan (TChan, readTChan)
 import Process.Timer (Timeout, newTimeout, waitTimeout)
-import Process.Type (NodeId (..), Some (..), Sum (Sum))
+import Process.Type (NodeId (..), Some (..))
 import Process.Util
 import Raft.Metric
 import Raft.Type
@@ -77,7 +77,7 @@ readMessageChanWithTimeout to tc f = do
   v <- liftIO $ atomically $ waitTimeout to <|> Just <$> readTChan tc
   case v of
     Nothing -> throwError TimeoutError
-    Just (Some (Sum val)) -> f val
+    Just (Some val) -> f val
 
 t1 ::
   forall command state sig m.

@@ -28,19 +28,15 @@ import GHC.TypeLits
   )
 import Process.TChan
 
-type Sum :: (Type -> Type) -> [Type] -> Type
-data Sum f r where
-  Sum :: f t -> Sum f r
-
 type Some :: (Type -> Type) -> Type
 data Some f where
-  Some :: Sum f r -> Some f
+  Some :: f t -> Some f
 
 class ToSig a b where
   toSig :: a -> b a
 
 inject :: ToSig e f => e -> Some f
-inject = Some . Sum . toSig
+inject = Some .  toSig
 {-# INLINE inject #-}
 
 type family ToList (a :: (Type -> Type)) :: [Type]
