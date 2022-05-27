@@ -37,10 +37,9 @@ import Process.HasPeerGroup
     NodeState (..),
     callAll,
     callById,
-    getNodeId,
     runWithPeers',
   )
-import Process.HasServer (HasServer, call, cast, runWithServer)
+import Process.HasServer (HasServer, cast, runWithServer)
 import Process.Metric
 import Process.TChan (newTChanIO)
 import Process.TH
@@ -63,22 +62,10 @@ data Log where
 data Cal where
   Cal :: Cal
 
-data CS where
-  CS :: String -> CS
-
-data Status where
-  Status :: RespVal (NodeId, Role, [(String, Int)]) %1 -> Status
-
-mkSigAndClass
-  "SigStatus"
-  [ ''Status
-  ]
-
 mkSigAndClass
   "SigLog"
   [ ''Log,
-    ''Cal,
-    ''CS
+    ''Cal
   ]
 
 mkSigAndClass
@@ -116,19 +103,6 @@ log = forever $ do
       all <- getVal all_all
       liftIO $ print (val, all)
       putVal all_log 0
-    SigLog3 (CS s) -> do
-      liftIO $ putStrLn s
-
-t00 ::
-  ( MonadIO m,
-    HasServer "log" SigLog '[CS] sig m,
-    HasServer "status" SigStatus '[Status] sig m
-  ) =>
-  m ()
-t00 = do
-  val <- call @"status" $ Status
-  cast @"log" $ CS $ show val
-  liftIO $ threadDelay 440_000
 
 t0 ::
   ( MonadIO m,
@@ -143,20 +117,12 @@ t1 ::
   ( MonadIO m,
     Has (State Role) sig m,
     Has (Metric NodeMet) sig m,
-    Has (MessageChan SigStatus) sig m,
     HasServer "log" SigLog '[Log] sig m,
     HasPeerGroup "peer" SigRPC '[CallMsg, ChangeMaster] sig m
   ) =>
   m ()
 t1 = forever $ do
   inc all_a
-  handleFlushMsgs @SigStatus $ \case
-    SigStatus1 (Status resp) -> withResp resp $ do
-      r <- get
-      nid <- getNodeId @"peer"
-      st <- getAll @NodeMet
-      pure (nid, r, st)
-
   get @Role >>= \case
     Master -> do
       inc all_b
@@ -182,18 +148,10 @@ r1 = do
     tc <- newTChanIO
     pure (NodeId i, tc)
   let nodeMap = Map.fromList nodes
-  hhs@(h : hs) <- forM nodes $ \(nid, tc) -> do
-    statusChan <- newMessageChan @SigStatus
-    pure (NodeState nid (Map.delete nid nodeMap) tc, statusChan)
+  (h : hs) <- forM nodes $ \(nid, tc) -> do
+    pure (NodeState nid (Map.delete nid nodeMap) tc)
 
   logChan <- newMessageChan @SigLog
-
-  forkIO $
-    void $
-      forever $ do
-        forM_ hhs $ \(_, sv) -> do
-          runWithServer @"log" logChan $
-            runWithServer @"status" sv t00
 
   forkIO $
     void $
@@ -207,19 +165,17 @@ r1 = do
   forkIO $
     void $
       runWithServer @"log" logChan $
-        runServerWithChan (snd h) $
-          runWithPeers' @"peer" (fst h) $
-            runMetric @NodeMet $
-              runState Master t1
+        runWithPeers' @"peer" h $
+          runMetric @NodeMet $
+            runState Master t1
 
   forM_ hs $ \h' -> do
     forkIO $
       void $
         runWithServer @"log" logChan $
-          runServerWithChan (snd h') $
-            runWithPeers' @"peer" (fst h') $
-              runMetric @NodeMet $
-                runState Slave t1
+          runWithPeers' @"peer" h' $
+            runMetric @NodeMet $
+              runState Slave t1
 
   forever $ do
     threadDelay 10_000_000
