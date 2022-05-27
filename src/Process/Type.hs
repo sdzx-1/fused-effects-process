@@ -30,13 +30,13 @@ import Process.TChan
 
 type Some :: (Type -> Type) -> Type
 data Some f where
-  Some :: f t -> Some f
+  Some :: !(f t) -> Some f
 
 class ToSig a b where
   toSig :: a -> b a
 
 inject :: ToSig e f => e -> Some f
-inject = Some .  toSig
+inject = Some . toSig
 {-# INLINE inject #-}
 
 type family ToList (a :: (Type -> Type)) :: [Type]
@@ -69,21 +69,21 @@ type family Elems (name :: Symbol) (ls :: [Type]) (ts :: [Type]) :: Constraint w
   Elems name '[] ts = ()
 
 data RespVal a where
-  RespVal :: TMVar a -> RespVal a
+  RespVal :: {-# UNPACK #-} !(TMVar a) -> RespVal a
 
 newtype NodeId = NodeId Int deriving (Show, Eq, Ord)
 
 type ProcessState :: (Type -> Type) -> [Type] -> Type
 data ProcessState s ts = ProcessState
   { pChan :: TChan (Some s),
-    pid :: NodeId,
-    tid :: ThreadId
+    pid :: {-# UNPACK #-} !NodeId,
+    tid :: {-# UNPACK #-} !ThreadId
   }
 
 data ProcessInfo = ProcessInfo
-  { ppid :: NodeId,
-    ptid :: ThreadId,
-    psize :: Int
+  { ppid :: {-# UNPACK #-} !NodeId,
+    ptid :: {-# UNPACK #-} !ThreadId,
+    psize :: {-# UNPACK #-} !Int
   }
 
 state2info :: ProcessState s ts -> IO ProcessInfo
@@ -102,8 +102,8 @@ instance Show ProcessInfo where
       ++ show psize
 
 data Result = Result
-  { terminateTime :: UTCTime,
-    rpid :: NodeId,
+  { terminateTime :: {-# UNPACK #-} !UTCTime,
+    rpid :: {-# UNPACK #-} !NodeId,
     result :: Either SomeException ()
   }
 
