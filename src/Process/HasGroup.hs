@@ -70,7 +70,7 @@ import Process.Type
   )
 import System.Timeout (timeout)
 
-type HasWorkGroup (serverName :: Symbol) s ts sig m =
+type HasGroup (serverName :: Symbol) s ts sig m =
   ( Elems serverName ts (ToList s),
     HasLabelled serverName (Request s ts) sig m
   )
