@@ -55,14 +55,15 @@ import qualified Data.Map as Map
 import Data.Traversable (for)
 import GHC.TypeLits (Symbol)
 import Process.TChan
-  ( writeTChan,
+  ( TChan (..),
+    writeTChan,
   )
 import Process.Type
   ( Elem,
     Elems,
     NodeId,
-    ProcessState (..),
     RespVal (..),
+    Some,
     ToList,
     ToSig,
     inject,
@@ -220,37 +221,37 @@ mcast ::
 mcast is f = mapM_ (\x -> castById @serverName x f) is
 {-# INLINE mcast #-}
 
-type WorkGroupState :: (Type -> Type) -> [Type] -> Type
-data WorkGroupState s ts = WorkGroupState
-  { workMap :: Map NodeId (ProcessState s ts)
+type WorkGroupState :: (Type -> Type) -> Type
+data WorkGroupState s = WorkGroupState
+  { workMap :: Map NodeId (TChan (Some s))
   }
 
 type RequestC :: (Type -> Type) -> [Type] -> (Type -> Type) -> Type -> Type
-newtype RequestC s ts m a = RequestC {unRequestC :: StateC (WorkGroupState s ts) m a}
+newtype RequestC s ts m a = RequestC {unRequestC :: StateC (WorkGroupState s) m a}
   deriving (Functor, Applicative, Monad, MonadIO)
 
 instance (Algebra sig m, MonadIO m) => Algebra (Request s ts :+: sig) (RequestC s ts m) where
   alg hdl sig ctx = RequestC $ case sig of
     L (SendReq i t) -> do
-      wm <- gets @(WorkGroupState s ts) workMap
+      wm <- gets @(WorkGroupState s) workMap
       case Map.lookup i wm of
         Nothing -> do
           liftIO $ print $ "not found pid: " ++ show i
           pure ctx
         Just ch -> do
-          liftIO $ atomically $ writeTChan (pChan ch) (inject t)
+          liftIO $ atomically $ Process.TChan.writeTChan ch (inject t)
           pure ctx
     L (SendAllCall t) -> do
-      wm <- gets @(WorkGroupState s ts) workMap
+      wm <- gets @(WorkGroupState s) workMap
       mvs <- forM (Map.toList wm) $ \(idx, ch) -> do
         mv <- liftIO newEmptyTMVarIO
-        liftIO $ atomically $ writeTChan (pChan ch) (inject (t $ RespVal mv))
+        liftIO $ atomically $ Process.TChan.writeTChan ch (inject (t $ RespVal mv))
         pure (idx, mv)
       pure (mvs <$ ctx)
     L (SendAllCast t) -> do
-      wm <- gets @(WorkGroupState s ts) workMap
+      wm <- gets @(WorkGroupState s) workMap
       Map.traverseWithKey
-        (\_ ch -> liftIO $ atomically $ writeTChan (pChan ch) (inject t))
+        (\_ ch -> liftIO $ atomically $ Process.TChan.writeTChan ch (inject t))
         wm
       pure ctx
     R signa -> alg (unRequestC . hdl) (R signa) ctx
@@ -259,11 +260,11 @@ instance (Algebra sig m, MonadIO m) => Algebra (Request s ts :+: sig) (RequestC 
 runWithWorkGroup' ::
   forall serverName s ts m a.
   MonadIO m =>
-  WorkGroupState s ts ->
+  WorkGroupState s ->
   Labelled (serverName :: Symbol) (RequestC s ts) m a ->
   m a
 runWithWorkGroup' ws f = do
-  evalState @(WorkGroupState s ts) ws $
+  evalState @(WorkGroupState s) ws $
     unRequestC $
       runLabelled f
 {-# INLINE runWithWorkGroup' #-}
