@@ -16,7 +16,7 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Process.HasPeerGroup where
+module Process.HasPeer where
 
 import Control.Carrier.State.Strict
   ( Algebra,
@@ -66,7 +66,7 @@ import Process.Type
 -- castPeer :: NodeId -> Message -> m ()
 -- castPeers :: Message -> m ()
 
-type HasPeerGroup (peerName :: Symbol) s ts sig m =
+type HasPeer (peerName :: Symbol) s ts sig m =
   ( Elems peerName ts (ToList s),
     HasLabelled peerName (PeerAction s ts) sig m
   )

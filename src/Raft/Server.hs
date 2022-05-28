@@ -37,8 +37,8 @@ import Control.Monad.IO.Class (MonadIO (..))
 import Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Data.Typeable as T
-import Process.HasPeerGroup
-  ( HasPeerGroup,
+import Process.HasPeer
+  ( HasPeer,
     callAll,
     getChan,
     runWithPeers,
@@ -86,7 +86,7 @@ t1 ::
     T.Typeable command,
     Machine command state, -- machine
     Has (State state) sig m,
-    HasPeerGroup "peer" SigRPC '[AppendEntries, RequestVote] sig m, -- peer rpc, message chan
+    HasPeer "peer" SigRPC '[AppendEntries, RequestVote] sig m, -- peer rpc, message chan
     Has (State (CoreState command) :+: Error Control) sig m -- raft core state, control flow
   ) =>
   m ()

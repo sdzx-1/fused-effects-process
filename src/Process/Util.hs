@@ -28,7 +28,7 @@ import Control.Concurrent.STM
   )
 import Control.Monad (forM_, when)
 import Control.Monad.IO.Class (MonadIO (..))
-import Process.HasPeerGroup
+import Process.HasPeer
 import Process.TChan (TChan, flushTQueue, newTChanIO, readTChan)
 import Process.Type (RespVal (..), Some (..))
 
@@ -158,7 +158,7 @@ whenM b m = do
 handleMsg ::
   forall peerName s ts sig m.
   ( MonadIO m,
-    HasPeerGroup peerName s ts sig m
+    HasPeer peerName s ts sig m
   ) =>
   (forall s1. s s1 %1 -> m ()) ->
   m ()

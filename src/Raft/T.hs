@@ -32,8 +32,8 @@ import Control.Concurrent.STM.TMVar (readTMVar)
 import Control.Monad (forM, forM_, forever, void)
 import Control.Monad.IO.Class (MonadIO (..))
 import qualified Data.Map as Map
-import Process.HasPeerGroup
-  ( HasPeerGroup,
+import Process.HasPeer
+  ( HasPeer,
     NodeState (..),
     callAll,
     callById,
@@ -118,7 +118,7 @@ t1 ::
     Has (State Role) sig m,
     Has (Metric NodeMet) sig m,
     HasServer "log" SigLog '[Log] sig m,
-    HasPeerGroup "peer" SigRPC '[CallMsg, ChangeMaster] sig m
+    HasPeer "peer" SigRPC '[CallMsg, ChangeMaster] sig m
   ) =>
   m ()
 t1 = forever $ do

@@ -20,10 +20,10 @@ extra-source-files: CHANGELOG.md
 
 library
     exposed-modules:  Process.Metric
-                    , Process.HasPeerGroup
+                    , Process.HasPeer
+                    , Process.HasGroup
                     , Process.HasServer
                     , Process.HasWorkGroup
-                    , Process.HasGroup
                     , Process.TH
                     , Process.Type
                     , Process.Util
