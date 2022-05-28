@@ -23,6 +23,7 @@ library
                     , Process.HasPeerGroup
                     , Process.HasServer
                     , Process.HasWorkGroup
+                    , Process.HasGroup
                     , Process.TH
                     , Process.Type
                     , Process.Util
