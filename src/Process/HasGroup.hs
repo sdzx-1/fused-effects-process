@@ -257,14 +257,14 @@ instance (Algebra sig m, MonadIO m) => Algebra (Request s ts :+: sig) (RequestC 
     R signa -> alg (unRequestC . hdl) (R signa) ctx
   {-# INLINE alg #-}
 
-runWithWorkGroup' ::
+runWithGroup ::
   forall serverName s ts m a.
   MonadIO m =>
   WorkGroupState s ->
   Labelled (serverName :: Symbol) (RequestC s ts) m a ->
   m a
-runWithWorkGroup' ws f = do
+runWithGroup ws f = do
   evalState @(WorkGroupState s) ws $
     unRequestC $
       runLabelled f
-{-# INLINE runWithWorkGroup' #-}
+{-# INLINE runWithGroup #-}
