@@ -191,14 +191,14 @@ callAll ::
 callAll t = sendLabelled @peerName (SendAllCall t)
 {-# INLINE callAll #-}
 
-type NodeState :: (Type -> Type) -> [Type] -> Type
-data NodeState s ts = NodeState
+type PeerState :: (Type -> Type) -> [Type] -> Type
+data PeerState s ts = PeerState
   { nodeId :: NodeId,
     peers :: Map NodeId (TChan (Some s)),
     nodeChan :: TChan (Some s)
   }
 
-newtype PeerActionC s ts m a = PeerActionC {unPeerActionC :: StateC (NodeState s ts) m a}
+newtype PeerActionC s ts m a = PeerActionC {unPeerActionC :: StateC (PeerState s ts) m a}
   deriving (Functor, Applicative, Monad, MonadIO)
 
 instance
@@ -207,18 +207,18 @@ instance
   where
   alg hdl sig ctx = PeerActionC $ case sig of
     L (Join nid tc) -> do
-      ps@NodeState {peers} <- get @(NodeState s ts)
-      put @(NodeState s ts) (ps {peers = Map.insert nid tc peers})
+      ps@PeerState {peers} <- get @(PeerState s ts)
+      put @(PeerState s ts) (ps {peers = Map.insert nid tc peers})
       pure ctx
     L (Leave nid) -> do
-      ps@NodeState {peers} <- get @(NodeState s ts)
-      put @(NodeState s ts) (ps {peers = Map.delete nid peers})
+      ps@PeerState {peers} <- get @(PeerState s ts)
+      put @(PeerState s ts) (ps {peers = Map.delete nid peers})
       pure ctx
     L PeerSize -> do
-      NodeState {peers} <- get @(NodeState s ts)
+      PeerState {peers} <- get @(PeerState s ts)
       pure (Map.size peers <$ ctx)
     L (SendMessage nid t) -> do
-      NodeState {peers} <- get @(NodeState s ts)
+      PeerState {peers} <- get @(PeerState s ts)
       case Map.lookup nid peers of
         Nothing -> do
           liftIO $ print $ "node id not found: " ++ show nid
@@ -227,31 +227,31 @@ instance
           liftIO $ atomically $ writeTChan tc (inject t)
           pure ctx
     L (SendAllCall t) -> do
-      NodeState {peers} <- get @(NodeState s ts)
+      PeerState {peers} <- get @(PeerState s ts)
       tmvs <- forM (Map.toList peers) $ \(idx, ch) -> do
         tmv <- liftIO newEmptyTMVarIO
         liftIO $ atomically $ writeTChan ch (inject (t $ RespVal tmv))
         pure (idx, tmv)
       pure (tmvs <$ ctx)
     L (SendAllCast t) -> do
-      NodeState {peers} <- get @(NodeState s ts)
+      PeerState {peers} <- get @(PeerState s ts)
       Map.traverseWithKey (\_ ch -> liftIO $ atomically $ writeTChan ch (inject t)) peers
       pure ctx
     L GetChan -> do
-      NodeState {nodeChan} <- get @(NodeState s ts)
+      PeerState {nodeChan} <- get @(PeerState s ts)
       pure (nodeChan <$ ctx)
     L GetNodeId -> do
-      NodeState {nodeId} <- get @(NodeState s ts)
+      PeerState {nodeId} <- get @(PeerState s ts)
       pure (nodeId <$ ctx)
     L GetPeersNodeId -> do
-      NodeState {peers} <- get @(NodeState s ts)
+      PeerState {peers} <- get @(PeerState s ts)
       pure (Map.keys peers <$ ctx)
     R signa -> alg (unPeerActionC . hdl) (R signa) ctx
   {-# INLINE alg #-}
 
-initNodeState :: NodeId -> IO (NodeState s ts)
+initNodeState :: NodeId -> IO (PeerState s ts)
 initNodeState nid = do
-  NodeState nid Map.empty <$> newTChanIO
+  PeerState nid Map.empty <$> newTChanIO
 {-# INLINE initNodeState #-}
 
 runWithPeers ::
@@ -262,14 +262,14 @@ runWithPeers ::
   m a
 runWithPeers nid f = do
   ins <- liftIO $ initNodeState nid
-  evalState @(NodeState s ts) ins $
+  evalState @(PeerState s ts) ins $
     unPeerActionC $ runLabelled f
 {-# INLINE runWithPeers #-}
 
 runWithPeers' ::
   forall peerName s ts m a.
   MonadIO m =>
-  NodeState s ts ->
+  PeerState s ts ->
   Labelled (peerName :: Symbol) (PeerActionC s ts) m a ->
   m a
 runWithPeers' ns f = evalState ns $ unPeerActionC $ runLabelled f

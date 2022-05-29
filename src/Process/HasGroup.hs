@@ -5,10 +5,8 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE LinearTypes #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StandaloneKindSignatures #-}
@@ -221,19 +219,19 @@ mcast ::
 mcast is f = mapM_ (\x -> castById @serverName x f) is
 {-# INLINE mcast #-}
 
-type WorkGroupState :: (Type -> Type) -> Type
-data WorkGroupState s = WorkGroupState
+type GroupState :: (Type -> Type) -> Type
+newtype GroupState s = GroupState
   { workMap :: Map NodeId (TChan (Some s))
   }
 
 type RequestC :: (Type -> Type) -> [Type] -> (Type -> Type) -> Type -> Type
-newtype RequestC s ts m a = RequestC {unRequestC :: StateC (WorkGroupState s) m a}
+newtype RequestC s ts m a = RequestC {unRequestC :: StateC (GroupState s) m a}
   deriving (Functor, Applicative, Monad, MonadIO)
 
 instance (Algebra sig m, MonadIO m) => Algebra (Request s ts :+: sig) (RequestC s ts m) where
   alg hdl sig ctx = RequestC $ case sig of
     L (SendReq i t) -> do
-      wm <- gets @(WorkGroupState s) workMap
+      wm <- gets @(GroupState s) workMap
       case Map.lookup i wm of
         Nothing -> do
           liftIO $ print $ "not found pid: " ++ show i
@@ -242,14 +240,14 @@ instance (Algebra sig m, MonadIO m) => Algebra (Request s ts :+: sig) (RequestC 
           liftIO $ atomically $ Process.TChan.writeTChan ch (inject t)
           pure ctx
     L (SendAllCall t) -> do
-      wm <- gets @(WorkGroupState s) workMap
+      wm <- gets @(GroupState s) workMap
       mvs <- forM (Map.toList wm) $ \(idx, ch) -> do
         mv <- liftIO newEmptyTMVarIO
         liftIO $ atomically $ Process.TChan.writeTChan ch (inject (t $ RespVal mv))
         pure (idx, mv)
       pure (mvs <$ ctx)
     L (SendAllCast t) -> do
-      wm <- gets @(WorkGroupState s) workMap
+      wm <- gets @(GroupState s) workMap
       Map.traverseWithKey
         (\_ ch -> liftIO $ atomically $ Process.TChan.writeTChan ch (inject t))
         wm
@@ -260,11 +258,11 @@ instance (Algebra sig m, MonadIO m) => Algebra (Request s ts :+: sig) (RequestC 
 runWithGroup ::
   forall serverName s ts m a.
   MonadIO m =>
-  WorkGroupState s ->
+  GroupState s ->
   Labelled (serverName :: Symbol) (RequestC s ts) m a ->
   m a
 runWithGroup ws f = do
-  evalState @(WorkGroupState s) ws $
+  evalState @(GroupState s) ws $
     unRequestC $
       runLabelled f
 {-# INLINE runWithGroup #-}

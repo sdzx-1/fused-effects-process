@@ -34,7 +34,7 @@ import Control.Monad.IO.Class (MonadIO (..))
 import qualified Data.Map as Map
 import Process.HasPeer
   ( HasPeer,
-    NodeState (..),
+    PeerState (..),
     callAll,
     callById,
     runWithPeers',
@@ -149,7 +149,7 @@ r1 = do
     pure (NodeId i, tc)
   let nodeMap = Map.fromList nodes
   (h : hs) <- forM nodes $ \(nid, tc) -> do
-    pure (NodeState nid (Map.delete nid nodeMap) tc)
+    pure (PeerState nid (Map.delete nid nodeMap) tc)
 
   logChan <- newMessageChan @SigLog
 
