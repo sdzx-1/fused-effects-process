@@ -18,7 +18,7 @@ import Control.Carrier.Reader (Reader, asks)
 import Control.Monad (forever)
 import Control.Monad.IO.Class (MonadIO (..))
 import Example.Type
-import Process.HasServer (HasServer)
+import Control.Carrier.HasServer (HasServer)
 import Process.Util
   ( MessageChan,
     withMessageChan,

@@ -22,8 +22,8 @@ import Control.Monad.IO.Class (MonadIO (..))
 import qualified Data.Map as Map
 import Example.Metric
 import Example.Type
-import Process.HasServer (HasServer, cast)
-import Process.Metric
+import Control.Carrier.HasServer (HasServer, cast)
+import Control.Carrier.Metric
   ( Metric,
     getAll,
     inc,

@@ -19,30 +19,37 @@ maintainer:         yangm@emqx.io
 extra-source-files: CHANGELOG.md
 
 library
-    exposed-modules:  Process.Metric
-                    , Process.HasPeer
-                    , Process.HasGroup
-                    , Process.HasServer
-                    , Process.HasWorkGroup
-                    , Process.TH
-                    , Process.Type
-                    , Process.Util
-                    , Process.TChan
-                    , Process.Timer
-                    , Example.Type
-                    , Example.Server
-                    , Example.Metric
-                    , Example.Log
-                    , Example.Client
-                    , Example.EOT
-                    , Example.PTC
-                    , Example.Work
-                    , Example.R
-                    , Raft.Type
-                    , Raft.Server
-                    , Raft.Metric
-                    , Raft.T
-                    , MapWork.Type
+    exposed-modules: Control.Effect.HasGroup
+                   , Control.Effect.HasPeer
+                   , Control.Effect.HasServer
+                   , Control.Effect.Metric
+
+                   , Control.Carrier.HasGroup
+                   , Control.Carrier.HasPeer
+                   , Control.Carrier.HasServer
+                   , Control.Carrier.Metric
+
+                   , Process.HasWorkGroup
+                   , Process.TH
+                   , Process.Type
+                   , Process.Util
+                   , Process.TChan
+                   , Process.Timer
+
+                   , Example.Type
+                   , Example.Server
+                   , Example.Metric
+                   , Example.Log
+                   , Example.Client
+                   , Example.EOT
+                   , Example.PTC
+                   , Example.Work
+                   , Example.R
+
+                   , Raft.Type
+                   , Raft.Server
+                   , Raft.Metric
+                   , Raft.T
 
     -- Modules included in this library but not exported.
     -- other-modules:
@@ -66,7 +73,8 @@ library
                     , random
     hs-source-dirs:   src
     default-language: Haskell2010
-    ghc-options: -W -fspecialise-aggressively
+    ghc-options: -W
+    -- ghc-options: -W -fspecialise-aggressively -O2
 
 executable example
     main-is:          Main.hs
@@ -82,7 +90,7 @@ executable example
 
     hs-source-dirs:   app
     default-language: Haskell2010
-    ghc-options: -threaded -O2 -rtsopts 
+    ghc-options: -threaded -O2
 
 
 test-suite fused-effects-process-test

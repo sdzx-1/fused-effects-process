@@ -20,8 +20,8 @@ import Control.Monad (forM_, forever)
 import Control.Monad.IO.Class (MonadIO (..))
 import Example.Metric
 import Example.Type
-import Process.HasServer (HasServer, call, cast)
-import Process.Metric
+import Control.Carrier.HasServer (HasServer, call, cast)
+import Control.Carrier.Metric
   ( Metric,
     getAll,
     inc,

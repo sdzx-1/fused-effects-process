@@ -13,7 +13,7 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Process.Metric
+module Control.Carrier.Metric
   ( Metric,
     inc,
     dec,
@@ -34,19 +34,17 @@ where
 
 import Control.Carrier.Reader
   ( Algebra,
-    Has,
     ReaderC (..),
     runReader,
   )
 import Control.Effect.Labelled
   ( Algebra (..),
-    send,
     type (:+:) (..),
   )
+import Control.Effect.Metric
 import Control.Monad.IO.Class (MonadIO (..))
 import Data.Data (Proxy (..))
 import Data.Default.Class (Default (..))
-import Data.Kind (Type)
 import qualified Data.Vector as V
 import Data.Vector.Unboxed.Mutable
   ( IOVector,
@@ -58,14 +56,9 @@ import Data.Vector.Unboxed.Mutable
 import qualified Data.Vector.Unboxed.Mutable as M
 import GHC.TypeLits
   ( KnownNat,
-    Nat,
     natVal,
   )
 import Prelude hiding (replicate)
-
-type K :: Nat -> Type
-data K s where
-  K :: K s
 
 toi :: forall s. (KnownNat s) => K s -> Int
 toi _ = fromIntegral $ natVal (Proxy :: Proxy s)
@@ -74,12 +67,6 @@ toi _ = fromIntegral $ natVal (Proxy :: Proxy s)
 get :: (KnownNat s, Default a) => (a -> K s) -> Int
 get v1 = toi . v1 $ def
 {-# INLINE get #-}
-
-class Vlength a where
-  vlength :: a -> Int
-
-class NameVector a where
-  vName :: a -> V.Vector String
 
 fun ::
   (KnownNat s, Default a) =>
@@ -105,34 +92,6 @@ inc1 v idx = fun v idx (+ 1)
 dec1 :: (KnownNat s, Default a) => IOVector Int -> (a -> K s) -> IO ()
 dec1 v idx = fun v idx (\x -> x - 1)
 {-# INLINE dec1 #-}
-
-type Metric :: Type -> (Type -> Type) -> Type -> Type
-data Metric v m a where
-  Inc :: KnownNat s => (v -> K s) -> Metric v m ()
-  Dec :: KnownNat s => (v -> K s) -> Metric v m ()
-  GetVal :: KnownNat s => (v -> K s) -> Metric v m Int
-  PutVal :: KnownNat s => (v -> K s) -> Int -> Metric v m ()
-  GetAll :: Metric v m [(String, Int)]
-
-inc :: (Has (Metric v) sig m, KnownNat s) => (v -> K s) -> m ()
-inc g = send (Inc g)
-{-# INLINE inc #-}
-
-dec :: (Has (Metric v) sig m, KnownNat s) => (v -> K s) -> m ()
-dec g = send (Dec g)
-{-# INLINE dec #-}
-
-getVal :: (Has (Metric v) sig m, KnownNat s) => (v -> K s) -> m Int
-getVal g = send (GetVal g)
-{-# INLINE getVal #-}
-
-putVal :: (Has (Metric v) sig m, KnownNat s) => (v -> K s) -> Int -> m ()
-putVal g v = send (PutVal g v)
-{-# INLINE putVal #-}
-
-getAll :: forall v sig m. Has (Metric v) sig m => m [(String, Int)]
-getAll = send (GetAll @v)
-{-# INLINE getAll #-}
 
 newtype MetriC v m a = MetriC {unMetric :: ReaderC (IOVector Int) m a}
   deriving (Functor, Applicative, Monad, MonadIO)

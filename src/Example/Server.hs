@@ -27,7 +27,7 @@ import Data.Set (Set)
 import Example.Metric
 import Example.Type
 import Example.Work
-import Process.HasServer (HasServer, cast, runWithServer)
+import Control.Carrier.HasServer (HasServer, cast, runWithServer)
 import Process.HasWorkGroup
   ( HasWorkGroup,
     castAll,
@@ -41,7 +41,7 @@ import Process.HasWorkGroup
     sendWorks,
     timeoutCallAll,
   )
-import Process.Metric
+import Control.Carrier.Metric
   ( Metric,
     getAll,
     inc,

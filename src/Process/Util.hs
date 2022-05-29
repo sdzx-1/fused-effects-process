@@ -14,6 +14,7 @@ import Control.Algebra
   ( Has,
     type (:+:),
   )
+import Control.Carrier.HasPeer
 import Control.Carrier.Reader
   ( Reader,
     ReaderC,
@@ -28,7 +29,6 @@ import Control.Concurrent.STM
   )
 import Control.Monad (forM_, when)
 import Control.Monad.IO.Class (MonadIO (..))
-import Process.HasPeer
 import Process.TChan (TChan, flushTQueue, newTChanIO, readTChan)
 import Process.Type (RespVal (..), Some (..))
 

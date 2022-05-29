@@ -14,7 +14,7 @@
 
 module Example.Metric where
 
-import Process.Metric
+import Control.Carrier.Metric
   ( Default (..),
     K (..),
     NameVector (..),

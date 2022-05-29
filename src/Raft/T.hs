@@ -20,6 +20,14 @@
 module Raft.T where
 
 import Control.Algebra (Has)
+import Control.Carrier.HasPeer
+  ( HasPeer,
+    PeerState (..),
+    callAll,
+    callById,
+    runWithPeers,
+  )
+import Control.Carrier.HasServer (HasServer, cast, runWithServer)
 import Control.Carrier.State.Strict
   ( State,
     get,
@@ -32,15 +40,7 @@ import Control.Concurrent.STM.TMVar (readTMVar)
 import Control.Monad (forM, forM_, forever, void)
 import Control.Monad.IO.Class (MonadIO (..))
 import qualified Data.Map as Map
-import Process.HasPeer
-  ( HasPeer,
-    PeerState (..),
-    callAll,
-    callById,
-    runWithPeers',
-  )
-import Process.HasServer (HasServer, cast, runWithServer)
-import Process.Metric
+import Control.Carrier.Metric
 import Process.TChan (newTChanIO)
 import Process.TH
 import Process.Type
@@ -165,7 +165,7 @@ r1 = do
   forkIO $
     void $
       runWithServer @"log" logChan $
-        runWithPeers' @"peer" h $
+        runWithPeers @"peer" h $
           runMetric @NodeMet $
             runState Master t1
 
@@ -173,7 +173,7 @@ r1 = do
     forkIO $
       void $
         runWithServer @"log" logChan $
-          runWithPeers' @"peer" h' $
+          runWithPeers @"peer" h' $
             runMetric @NodeMet $
               runState Slave t1
 

@@ -26,9 +26,9 @@ import Example.Metric
 import Example.PTC
 import Example.Server
 import Example.Type
-import Process.HasServer (runWithServer)
+import Control.Carrier.HasServer (runWithServer)
 import Process.HasWorkGroup
-import Process.Metric
+import Control.Carrier.Metric
 import Process.Type (NodeId)
 import Process.Util
 

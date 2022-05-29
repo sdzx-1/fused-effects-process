@@ -21,7 +21,7 @@ import Control.Monad (forever, replicateM_)
 import Control.Monad.IO.Class (MonadIO (..))
 import qualified Data.List as L
 import Example.Type
-import Process.HasServer (HasServer, call, cast)
+import Control.Carrier.HasServer (HasServer, call, cast)
 import Process.Type (NodeId (..))
 import Text.Read (readMaybe)
 

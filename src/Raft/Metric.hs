@@ -21,7 +21,7 @@
 
 module Raft.Metric where
 
-import Process.Metric
+import Control.Carrier.Metric
   ( Default (..),
     K (..),
     NameVector (..),

@@ -25,6 +25,14 @@ import Control.Carrier.Error.Either
     runError,
     throwError,
   )
+import Control.Carrier.HasPeer
+  ( HasPeer,
+    PeerState (PeerState),
+    callAll,
+    getChan,
+    runWithPeers,
+  )
+import Control.Carrier.Metric (Metric, inc, putVal, runMetric)
 import Control.Carrier.State.Strict
   ( State,
     modify,
@@ -37,13 +45,6 @@ import Control.Monad.IO.Class (MonadIO (..))
 import Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Data.Typeable as T
-import Process.HasPeer
-  ( HasPeer,
-    callAll,
-    getChan,
-    runWithPeers,
-  )
-import Process.Metric (Metric, inc, putVal, runMetric)
 import Process.TChan (TChan, readTChan)
 import Process.Timer (Timeout, newTimeout, waitTimeout)
 import Process.Type (NodeId (..), Some (..))
@@ -171,8 +172,9 @@ t1 = forever $ do
 r1 :: IO ()
 r1 = do
   tr <- newTimeout 5
+  tc <- newMessageChan
   void $
-    runWithPeers @"peer" (NodeId 1) $
+    runWithPeers @"peer" (PeerState (NodeId 1) Map.empty tc) $
       runMetric @Counter $
         runState @(CoreState MapCommand)
           ( CoreState

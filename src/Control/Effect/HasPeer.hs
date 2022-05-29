@@ -16,15 +16,21 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Process.HasPeer where
-
-import Control.Carrier.State.Strict
-  ( Algebra,
-    StateC (..),
-    evalState,
-    get,
-    put,
+module Control.Effect.HasPeer
+  ( HasPeer,
+    PeerAction (..),
+    getPeersNodeId,
+    getNodeId,
+    getChan,
+    leave,
+    join,
+    peerSize,
+    callById,
+    castById,
+    callAll,
   )
+where
+
 import Control.Concurrent.STM
   ( TMVar,
     atomically,
@@ -32,20 +38,13 @@ import Control.Concurrent.STM
     takeTMVar,
   )
 import Control.Effect.Labelled
-  ( Algebra (..),
-    HasLabelled,
-    Labelled,
-    runLabelled,
+  ( HasLabelled,
     sendLabelled,
-    type (:+:) (..),
   )
-import Control.Monad (forM)
 import Control.Monad.IO.Class (MonadIO (..))
 import Data.Kind (Type)
-import Data.Map (Map)
-import qualified Data.Map as Map
 import GHC.TypeLits (Symbol)
-import Process.TChan (TChan, newTChanIO, writeTChan)
+import Process.TChan (TChan)
 import Process.Type
   ( Elem,
     Elems,
@@ -54,17 +53,7 @@ import Process.Type
     Some,
     ToList,
     ToSig,
-    inject,
   )
-
----------------------------------------- api
--- peerJoin
--- peerLeave
--- callPeer :: NodeId -> Message -> m RespVal
-
--- callPeers :: Message -> m [RespVal]
--- castPeer :: NodeId -> Message -> m ()
--- castPeers :: Message -> m ()
 
 type HasPeer (peerName :: Symbol) s ts sig m =
   ( Elems peerName ts (ToList s),
@@ -190,87 +179,3 @@ callAll ::
   m [(NodeId, TMVar b)]
 callAll t = sendLabelled @peerName (SendAllCall t)
 {-# INLINE callAll #-}
-
-type PeerState :: (Type -> Type) -> [Type] -> Type
-data PeerState s ts = PeerState
-  { nodeId :: NodeId,
-    peers :: Map NodeId (TChan (Some s)),
-    nodeChan :: TChan (Some s)
-  }
-
-newtype PeerActionC s ts m a = PeerActionC {unPeerActionC :: StateC (PeerState s ts) m a}
-  deriving (Functor, Applicative, Monad, MonadIO)
-
-instance
-  (Algebra sig m, MonadIO m) =>
-  Algebra (PeerAction s ts :+: sig) (PeerActionC s ts m)
-  where
-  alg hdl sig ctx = PeerActionC $ case sig of
-    L (Join nid tc) -> do
-      ps@PeerState {peers} <- get @(PeerState s ts)
-      put @(PeerState s ts) (ps {peers = Map.insert nid tc peers})
-      pure ctx
-    L (Leave nid) -> do
-      ps@PeerState {peers} <- get @(PeerState s ts)
-      put @(PeerState s ts) (ps {peers = Map.delete nid peers})
-      pure ctx
-    L PeerSize -> do
-      PeerState {peers} <- get @(PeerState s ts)
-      pure (Map.size peers <$ ctx)
-    L (SendMessage nid t) -> do
-      PeerState {peers} <- get @(PeerState s ts)
-      case Map.lookup nid peers of
-        Nothing -> do
-          liftIO $ print $ "node id not found: " ++ show nid
-          pure ctx
-        Just tc -> do
-          liftIO $ atomically $ writeTChan tc (inject t)
-          pure ctx
-    L (SendAllCall t) -> do
-      PeerState {peers} <- get @(PeerState s ts)
-      tmvs <- forM (Map.toList peers) $ \(idx, ch) -> do
-        tmv <- liftIO newEmptyTMVarIO
-        liftIO $ atomically $ writeTChan ch (inject (t $ RespVal tmv))
-        pure (idx, tmv)
-      pure (tmvs <$ ctx)
-    L (SendAllCast t) -> do
-      PeerState {peers} <- get @(PeerState s ts)
-      Map.traverseWithKey (\_ ch -> liftIO $ atomically $ writeTChan ch (inject t)) peers
-      pure ctx
-    L GetChan -> do
-      PeerState {nodeChan} <- get @(PeerState s ts)
-      pure (nodeChan <$ ctx)
-    L GetNodeId -> do
-      PeerState {nodeId} <- get @(PeerState s ts)
-      pure (nodeId <$ ctx)
-    L GetPeersNodeId -> do
-      PeerState {peers} <- get @(PeerState s ts)
-      pure (Map.keys peers <$ ctx)
-    R signa -> alg (unPeerActionC . hdl) (R signa) ctx
-  {-# INLINE alg #-}
-
-initNodeState :: NodeId -> IO (PeerState s ts)
-initNodeState nid = do
-  PeerState nid Map.empty <$> newTChanIO
-{-# INLINE initNodeState #-}
-
-runWithPeers ::
-  forall peerName s ts m a.
-  MonadIO m =>
-  NodeId ->
-  Labelled (peerName :: Symbol) (PeerActionC s ts) m a ->
-  m a
-runWithPeers nid f = do
-  ins <- liftIO $ initNodeState nid
-  evalState @(PeerState s ts) ins $
-    unPeerActionC $ runLabelled f
-{-# INLINE runWithPeers #-}
-
-runWithPeers' ::
-  forall peerName s ts m a.
-  MonadIO m =>
-  PeerState s ts ->
-  Labelled (peerName :: Symbol) (PeerActionC s ts) m a ->
-  m a
-runWithPeers' ns f = evalState ns $ unPeerActionC $ runLabelled f
-{-# INLINE runWithPeers' #-}

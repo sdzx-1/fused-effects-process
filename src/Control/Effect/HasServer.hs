@@ -14,23 +14,19 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Process.HasServer where
+module Control.Effect.HasServer
+  ( HasServer,
+    Request (..),
+    call,
+    cast,
+    timeoutCall,
+  )
+where
 
-import Control.Carrier.Error.Either
-  ( Algebra,
-  )
-import Control.Carrier.Reader
-  ( ReaderC (..),
-    runReader,
-  )
 import Control.Concurrent.STM (atomically, newEmptyTMVarIO, takeTMVar)
 import Control.Effect.Labelled
-  ( Algebra (..),
-    HasLabelled,
-    Labelled,
-    runLabelled,
+  ( HasLabelled,
     sendLabelled,
-    type (:+:) (..),
   )
 import Control.Monad.IO.Class (MonadIO (..))
 import Data.Kind
@@ -39,15 +35,12 @@ import Data.Kind
 import GHC.TypeLits
   ( Symbol,
   )
-import Process.TChan
 import Process.Type
   ( Elem,
     Elems,
     RespVal (..),
-    Some (..),
     ToList,
     ToSig,
-    inject,
   )
 import System.Timeout (timeout)
 
@@ -119,26 +112,3 @@ cast ::
 cast f = do
   sendReq @serverName f
 {-# INLINE cast #-}
-
-type RequestC :: (Type -> Type) -> [Type] -> (Type -> Type) -> Type -> Type
-newtype RequestC s ts m a = RequestC {unRequestC :: ReaderC (TChan (Some s)) m a}
-  deriving (Functor, Applicative, Monad, MonadIO)
-
-instance (Algebra sig m, MonadIO m) => Algebra (Request s ts :+: sig) (RequestC s ts m) where
-  alg hdl sig ctx = RequestC $
-    ReaderC $ \c -> case sig of
-      L (SendReq t) -> do
-        liftIO $ atomically $ writeTChan c (inject t)
-        pure ctx
-      R signa -> alg (runReader c . unRequestC . hdl) signa ctx
-  {-# INLINE alg #-}
-
--- client
-runWithServer ::
-  forall serverName s ts m a.
-  TChan (Some s) ->
-  Labelled (serverName :: Symbol) (RequestC s ts) m a ->
-  m a
-runWithServer chan f =
-  runReader chan $ unRequestC $ runLabelled f
-{-# INLINE runWithServer #-}

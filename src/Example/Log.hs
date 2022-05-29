@@ -39,7 +39,7 @@ import Example.Type
     printOut,
     useLogFile,
   )
-import Process.Metric
+import Control.Carrier.Metric
   ( Metric,
     getAll,
     getVal,
