@@ -15,6 +15,13 @@ module Example.Server where
 
 import Control.Algebra (Has, type (:+:))
 import Control.Carrier.Error.Either (runError)
+import Control.Carrier.HasServer (HasServer, cast, runWithServer)
+import Control.Carrier.Metric
+  ( Metric,
+    getAll,
+    inc,
+    showMetric,
+  )
 import Control.Carrier.Reader (ask, runReader)
 import Control.Carrier.State.Strict
   ( State,
@@ -24,10 +31,10 @@ import Control.Carrier.State.Strict
 import Control.Monad (forever, void)
 import Control.Monad.IO.Class (MonadIO (..))
 import Data.Set (Set)
+import qualified Data.Set as Set
 import Example.Metric
 import Example.Type
 import Example.Work
-import Control.Carrier.HasServer (HasServer, cast, runWithServer)
 import Process.HasWorkGroup
   ( HasWorkGroup,
     castAll,
@@ -41,12 +48,6 @@ import Process.HasWorkGroup
     sendWorks,
     timeoutCallAll,
   )
-import Control.Carrier.Metric
-  ( Metric,
-    getAll,
-    inc,
-    showMetric,
-  )
 import Process.Type (NodeId)
 import Process.Util
   ( MessageChan,
@@ -54,7 +55,6 @@ import Process.Util
     withResp,
     withThreeMessageChan,
   )
-import qualified Data.Set as Set
 
 -------------------------------------Manager - Work, Manager
 
@@ -99,13 +99,13 @@ server =
             slog <- ask
             inc all_create
             createWorker @SigCommand $ \idx ch ->
-              void $
-                runWorkerWithChan ch $
-                  runReader (WorkInfo idx) $
-                    runError @TerminateProcess $
-                      runWithServer @"log"
-                        slog
-                        mWork
+              void
+                . runWorkerWithChan ch
+                . runReader (WorkInfo idx)
+                . runError @TerminateProcess
+                $ runWithServer @"log"
+                  slog
+                  mWork
           SigCreate2 (GetInfo rsp) ->
             withResp
               rsp

@@ -28,6 +28,7 @@ import Control.Carrier.HasPeer
     runWithPeers,
   )
 import Control.Carrier.HasServer (HasServer, cast, runWithServer)
+import Control.Carrier.Metric
 import Control.Carrier.State.Strict
   ( State,
     get,
@@ -40,7 +41,6 @@ import Control.Concurrent.STM.TMVar (readTMVar)
 import Control.Monad (forM, forM_, forever, void)
 import Control.Monad.IO.Class (MonadIO (..))
 import qualified Data.Map as Map
-import Control.Carrier.Metric
 import Process.TChan (newTChanIO)
 import Process.TH
 import Process.Type
@@ -153,29 +153,29 @@ r1 = do
 
   logChan <- newMessageChan @SigLog
 
-  forkIO $
-    void $
-      runWithServer @"log" logChan t0
+  forkIO
+    . void
+    $ runWithServer @"log" logChan t0
 
-  forkIO $
-    void $
-      runMetric @LogMet $
-        runServerWithChan logChan log
+  forkIO
+    . void
+    . runMetric @LogMet
+    $ runServerWithChan logChan log
 
-  forkIO $
-    void $
-      runWithServer @"log" logChan $
-        runWithPeers @"peer" h $
-          runMetric @NodeMet $
-            runState Master t1
+  forkIO
+    . void
+    . runWithServer @"log" logChan
+    . runWithPeers @"peer" h
+    . runMetric @NodeMet
+    $ runState Master t1
 
   forM_ hs $ \h' -> do
-    forkIO $
-      void $
-        runWithServer @"log" logChan $
-          runWithPeers @"peer" h' $
-            runMetric @NodeMet $
-              runState Slave t1
+    forkIO
+      . void
+      . runWithServer @"log" logChan
+      . runWithPeers @"peer" h'
+      . runMetric @NodeMet
+      $ runState Slave t1
 
   forever $ do
     threadDelay 10_000_000

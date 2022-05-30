@@ -10,6 +10,8 @@
 
 module Example.R where
 
+import Control.Carrier.HasServer (runWithServer)
+import Control.Carrier.Metric
 import Control.Carrier.Reader (runReader)
 import Control.Carrier.State.Strict
 import Control.Concurrent (forkIO, takeMVar)
@@ -26,9 +28,7 @@ import Example.Metric
 import Example.PTC
 import Example.Server
 import Example.Type
-import Control.Carrier.HasServer (runWithServer)
 import Process.HasWorkGroup
-import Control.Carrier.Metric
 import Process.Type (NodeId)
 import Process.Util
 
@@ -46,52 +46,55 @@ runmProcess = do
   ftmvar <- newEmptyMVar @()
 
   print "fork log server"
-  forkIO $
-    void $
-      runMetric @Lines $
-        runState logState $
-          runServerWithChan slog logServer
+  forkIO
+    . void
+    . runMetric @Lines
+    . runState logState
+    $ runServerWithChan slog logServer
 
   print "fork et process"
-  forkIO $
-    void $
-      runWithServer @"et" se $
-        runWithServer @"log" slog $
-          runMetric @ETmetric $
-            runReader
-              (EotConfig 1_000_000 tvar)
-              eotProcess
+  forkIO
+    . void
+    . runWithServer @"et" se
+    . runWithServer @"log" slog
+    . runMetric @ETmetric
+    $ runReader
+      (EotConfig 1_000_000 tvar)
+      eotProcess
 
   print "fork ptc process"
-  forkIO $
-    void $
-      runWithServer @"ptc" stimeout $
-        runMetric @PTmetric $
-          runWithServer @"log" slog $
-            runReader
-              (PtConfig 1_000_000)
-              ptcProcess
+  forkIO
+    . void
+    . runWithServer @"ptc" stimeout
+    . runMetric @PTmetric
+    . runWithServer @"log" slog
+    $ runReader
+      (PtConfig 1_000_000)
+      ptcProcess
 
   print "fork server process"
-  forkIO $
-    void $
-      runServerWithChan stimeout $
-        runServerWithChan se $
-          runServerWithChan sc $
-            runWithServer @"log" slog $
-              runReader slog $
-                runMetric @Wmetric $
-                  runState @(Set NodeId) Set.empty $
-                    runWithWorkGroup' @"w"
-                      tvar
-                      server
+  forkIO
+    . void
+    . runServerWithChan stimeout
+    . runServerWithChan se
+    . runServerWithChan sc
+    . runWithServer @"log" slog
+    . runReader slog
+    . runMetric @Wmetric
+    . runState @(Set NodeId) Set.empty
+    $ runWithWorkGroup' @"w"
+      tvar
+      server
 
   print "fork client"
-  forkIO $
-    void $
-      runWithServer @"log" slog $
-        runReader ftmvar $
-          runWithServer @"s" sc client
+  forkIO
+    . void
+    . runWithServer @"log" slog
+    . runReader ftmvar
+    $ runWithServer @"s" sc client
 
-  forkIO $ void $ runWithServer @"s" sc ls
+  forkIO
+    . void
+    $ runWithServer @"s" sc ls
+
   takeMVar ftmvar

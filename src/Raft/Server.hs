@@ -173,17 +173,17 @@ r1 :: IO ()
 r1 = do
   tr <- newTimeout 5
   tc <- newMessageChan
-  void $
-    runWithPeers @"peer" (PeerState (NodeId 1) Map.empty tc) $
-      runMetric @Counter $
-        runState @(CoreState MapCommand)
-          ( CoreState
-              Follower
-              tr
-              initPersistentState
-              initVolatileState
-              Nothing
-          )
-          $ runState @(Map Int Int) Map.empty $
-            runError @Control $
-              t1 @MapCommand @(Map Int Int)
+  void
+    . runWithPeers @"peer" (PeerState (NodeId 1) Map.empty tc)
+    . runMetric @Counter
+    . runState @(CoreState MapCommand)
+      ( CoreState
+          Follower
+          tr
+          initPersistentState
+          initVolatileState
+          Nothing
+      )
+    . runState @(Map Int Int) Map.empty
+    . runError @Control
+    $ t1 @MapCommand @(Map Int Int)
