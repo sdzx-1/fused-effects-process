@@ -42,6 +42,7 @@ import Control.Effect.Labelled
     type (:+:) (..),
   )
 import Control.Effect.Metric
+import Control.Monad (forM_)
 import Control.Monad.IO.Class (MonadIO (..))
 import Data.Data (Proxy (..))
 import Data.Default.Class (Default (..))
@@ -117,6 +118,10 @@ instance
       L GetAll -> do
         v <- liftIO $ M.ifoldr' (\i a b -> (vName @v undefined V.! i, a) : b) [] iov
         pure (v <$ ctx)
+      L Reset -> do
+        forM_ [0 .. M.length iov - 1] $ \i ->
+          liftIO $ unsafeWrite iov i 0
+        pure ctx
       R signa -> alg (runReader iov . unMetric . hdl) signa ctx
   {-# INLINE alg #-}
 

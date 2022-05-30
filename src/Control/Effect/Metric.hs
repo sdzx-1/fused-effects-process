@@ -14,12 +14,13 @@
 {-# LANGUAGE UndecidableInstances #-}
 
 module Control.Effect.Metric
-  ( Metric(..),
+  ( Metric (..),
     inc,
     dec,
     getVal,
     putVal,
     getAll,
+    reset,
     K (..),
     Vlength (..),
     NameVector (..),
@@ -59,6 +60,7 @@ data Metric v m a where
   GetVal :: KnownNat s => (v -> K s) -> Metric v m Int
   PutVal :: KnownNat s => (v -> K s) -> Int -> Metric v m ()
   GetAll :: Metric v m [(String, Int)]
+  Reset :: Metric v m ()
 
 inc :: (Has (Metric v) sig m, KnownNat s) => (v -> K s) -> m ()
 inc g = send (Inc g)
@@ -79,3 +81,7 @@ putVal g v = send (PutVal g v)
 getAll :: forall v sig m. Has (Metric v) sig m => m [(String, Int)]
 getAll = send (GetAll @v)
 {-# INLINE getAll #-}
+
+reset :: forall v sig m. Has (Metric v) sig m => m ()
+reset = send (Reset @v)
+{-# INLINE reset #-}
