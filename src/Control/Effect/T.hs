@@ -6,9 +6,9 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ImpredicativeTypes #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE LinearTypes #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StandaloneKindSignatures #-}
 {-# LANGUAGE TypeApplications #-}
@@ -38,7 +38,7 @@ import Control.Effect.Labelled
     runLabelled,
     sendLabelled,
   )
-import Control.Monad (forever, void)
+import Control.Monad (void)
 import Control.Monad.Class.MonadFork (MonadFork (forkIO))
 import Control.Monad.Class.MonadSTM
   ( MonadSTM
@@ -94,7 +94,7 @@ class
   toSig :: e n -> f n (e n)
 
 data RespVal n a where
-  RespVal :: {-# UNPACK #-} !(TMVar n a) -> RespVal n a
+  RespVal :: !(TMVar n a) -> RespVal n a
 
 type Request ::
   ((Type -> Type) -> Type -> Type) ->
@@ -179,6 +179,17 @@ cast ::
 cast f = sendLabelled @serverName (Cast f)
 {-# INLINE cast #-}
 
+timeoutCall ::
+  forall serverName s ts n sig m e b.
+  ( ToSig e s n,
+    HasLabelled (serverName :: Symbol) (Request s ts n) sig m
+  ) =>
+  DiffTime ->
+  (RespVal n b -> e n) ->
+  m (Maybe b)
+timeoutCall time f = sendLabelled @serverName (TimeoutCall time f)
+{-# INLINE timeoutCall #-}
+
 type HasServer (serverName :: Symbol) s ts n sig m =
   ( HasLabelled serverName (Request s ts n) sig m
   )
@@ -195,6 +206,36 @@ runWithServer chan f =
 instance Algebra (Lift (IOSim s)) (IOSim s) where
   alg hdl (LiftWith with) = with hdl
 
+withMessageChan ::
+  forall n s sig m.
+  ( MonadSTM n,
+    Has (Lift n) sig m,
+    Has (Reader (TQueue n (Some n s))) sig m
+  ) =>
+  (forall s0. s n s0 %1 -> m ()) ->
+  m ()
+withMessageChan f = do
+  tc <- ask @(TQueue n (Some n s))
+  Some v <- sendM @n $ atomically $ readTQueue tc
+  f v
+
+withResp ::
+  forall n sig m a.
+  ( MonadSTM n,
+    Has (Lift n) sig m
+  ) =>
+  RespVal n a %1 ->
+  m a ->
+  m ()
+withResp (RespVal tmv) ma = do
+  val <- ma
+  sendM @n $ atomically $ putTMVar tmv val
+{-# INLINE withResp #-}
+
+forever :: (Applicative f) => f () -> f b
+forever a = let a' = a *> a' in a'
+{-# INLINE forever #-}
+
 --------------------------- example
 
 data C (n :: Type -> Type) where
@@ -204,8 +245,8 @@ data D (n :: Type -> Type) where
   D :: Int -> D n
 
 data SigC n s where
-  SigC1 :: C n -> SigC n (C n)
-  SigC2 :: D n -> SigC n (D n)
+  SigC1 :: C n %1 -> SigC n (C n)
+  SigC2 :: D n %1 -> SigC n (D n)
 
 instance ToSig C SigC n where
   toSig = SigC1
@@ -213,23 +254,23 @@ instance ToSig C SigC n where
 instance ToSig D SigC n where
   toSig = SigC2
 
-tl ::
+client ::
   forall n sig m.
   ( MonadDelay n,
     Has (Lift n) sig m,
     HasServer "s" SigC '[C n, D n] n sig m
   ) =>
   m ()
-tl = do
+client = do
   val <- call @"s" C
   if val > 10000
     then pure ()
     else do
       cast @"s" $ D val
       sendM @n $ threadDelay 0.3
-      tl
+      client
 
-to ::
+server ::
   forall n sig m.
   ( MonadSay n,
     MonadSTM n,
@@ -239,13 +280,10 @@ to ::
     Has (Reader (TQueue n (Some n SigC))) sig m
   ) =>
   m ()
-to = forever @m @() $ do
-  tq <- ask @(TQueue n (Some n SigC))
-  Some v <- sendM @n $ atomically $ readTQueue tq
-  case v of
-    SigC1 (C (RespVal v0)) -> do
-      i <- get @Int
-      sendM @n $ atomically $ putTMVar v0 i
+server = forever $ do
+  withMessageChan @n @SigC $ \case
+    SigC1 (C resp) -> withResp resp $ do
+      get @Int
     SigC2 (D i) -> do
       time <- sendM @n $ getCurrentTime
       sendM @n $ say $ show (time, i)
@@ -266,13 +304,13 @@ runval = do
   s <- newTQueueIO
   forkIO
     . void
-    $ runWithServer @"s" @n s tl
+    $ runWithServer @"s" @n s client
 
   forkIO
     . void
     . runReader s
     . runState @Int 1
-    $ to @n
+    $ server @n
 
   threadDelay 2
   pure ()
