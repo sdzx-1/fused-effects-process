@@ -1,8 +1,12 @@
 module Main where
 
+import Control.Effect.T
+import qualified Control.Effect.T as T
 import Example.R (runmProcess)
 import Raft.T as T
 
 main :: IO ()
-main =  T.r1
-   -- runmProcess
+main = T.runval1
+
+-- T.r1
+-- runmProcess

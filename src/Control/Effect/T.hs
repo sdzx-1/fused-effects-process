@@ -18,7 +18,13 @@
 
 module Control.Effect.T where
 
-import Control.Algebra (Algebra (..), Has, type (:+:) (..))
+import Control.Algebra (Algebra (..), type (:+:) (..))
+import Control.Carrier.Error.Either
+  ( Error,
+    Has,
+    runError,
+    throwError,
+  )
 import Control.Carrier.Lift (Lift (..), sendM)
 import Control.Carrier.Reader
   ( Reader,
@@ -38,7 +44,7 @@ import Control.Effect.Labelled
     runLabelled,
     sendLabelled,
   )
-import Control.Monad (void)
+import Control.Monad (void, when)
 import Control.Monad.Class.MonadFork (MonadFork (forkIO))
 import Control.Monad.Class.MonadSTM
   ( MonadSTM
@@ -54,7 +60,7 @@ import Control.Monad.Class.MonadSTM
       ),
   )
 import Control.Monad.Class.MonadSay (MonadSay (..))
-import Control.Monad.Class.MonadTime (DiffTime, MonadTime (..))
+import Control.Monad.Class.MonadTime (DiffTime, MonadTime (..), diffUTCTime)
 import Control.Monad.Class.MonadTimer
   ( MonadDelay (..),
     MonadTimer (timeout),
@@ -67,6 +73,7 @@ import Control.Monad.IOSim
 import Data.Kind
   ( Type,
   )
+import Data.Time (UTCTime)
 import GHC.TypeLits
   ( Symbol,
   )
@@ -273,16 +280,14 @@ instance ToSig D SigC n where
 
 client ::
   forall n sig m.
-  ( HasServer "s" SigC '[C, D] n sig m
+  ( Has (Error ()) sig m,
+    HasServer "s" SigC '[C, D] n sig m
   ) =>
   m ()
-client = do
+client = forever $ do
   val <- call @"s" C
-  if val > 10000
-    then pure ()
-    else do
-      cast @"s" $ D val
-      client
+  when (val >= 1000) $ throwError ()
+  cast @"s" $ D val
 
 server ::
   forall n sig m.
@@ -291,7 +296,7 @@ server ::
     MonadTime n,
     MonadDelay n,
     Has (Lift n) sig m,
-    Has (State Int) sig m,
+    Has (State UTCTime :+: State Int) sig m,
     Has (Reader (TQueue n (Some n SigC))) sig m
   ) =>
   m ()
@@ -301,9 +306,11 @@ server = forever $ do
       sendM @n $ threadDelay 0.3
       get @Int
     SigC2 (D i) -> do
+      modify (+ i)
+      val <- get @Int
+      startTime <- get
       time <- sendM @n $ getCurrentTime
-      sendM @n $ say $ show (i, time)
-      modify @Int (+ i)
+      sendM @n $ say $ show (val, time `diffUTCTime` startTime)
 
 runval ::
   forall n.
@@ -318,18 +325,18 @@ runval ::
   n ()
 runval = do
   s <- newTQueueIO
-  forkIO
-    . void
-    $ runWithServer @"s" @n s client
+  time <- getCurrentTime
 
   forkIO
     . void
     . runReader s
+    . runState time
     . runState @Int 1
     $ server @n
 
-  threadDelay 2
-  pure ()
+  void
+    . runWithServer @"s" @n s
+    $ runError @() client
 
 runval1 :: IO ()
 runval1 = runval
@@ -338,4 +345,4 @@ runval2 :: [String]
 runval2 = selectTraceEventsSay $ runSimTrace runval
 
 -- >>> runval2
--- ["(1,1970-01-01 00:00:00.3 UTC)","(2,1970-01-01 00:00:00.6 UTC)","(4,1970-01-01 00:00:00.9 UTC)","(8,1970-01-01 00:00:01.2 UTC)","(16,1970-01-01 00:00:01.5 UTC)","(32,1970-01-01 00:00:01.8 UTC)"]
+-- ["(2,0.3s)","(4,0.6s)","(8,0.9s)","(16,1.2s)","(32,1.5s)","(64,1.8s)","(128,2.1s)","(256,2.4s)","(512,2.7s)","(1024,3s)"]
