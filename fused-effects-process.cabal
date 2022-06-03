@@ -30,6 +30,8 @@ library
                    , Control.Carrier.HasPeer
                    , Control.Carrier.HasServer
                    , Control.Carrier.Metric
+                   , Control.Carrier.Metric.IO
+                   , Control.Carrier.Metric.Pure
 
                    , Process.HasWorkGroup
                    , Process.TH
