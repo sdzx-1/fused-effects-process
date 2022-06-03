@@ -1,4 +1,5 @@
 # fused-effects-process
-## manager worker
-
-![desigen](data/wm.png)
+## fused-effects
+## GenServer
+## LinearType
+## IOSim

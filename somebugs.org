@@ -1,3 +1,0 @@
-* bug
-** $ in ghc9.2
-** -xn sometimes TVAR_CLEAN
