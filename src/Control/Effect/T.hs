@@ -70,6 +70,7 @@ import Data.Kind
 import GHC.TypeLits
   ( Symbol,
   )
+import Process.Type (Elem, Elems)
 
 type Some :: (Type -> Type) -> ((Type -> Type) -> Type -> Type) -> Type
 data Some n f where
@@ -93,8 +94,18 @@ class
   where
   toSig :: e n -> f n (e n)
 
+type family ToList (a :: (Type -> Type)) :: [Type]
+
 data RespVal n a where
   RespVal :: !(TMVar n a) -> RespVal n a
+
+type family
+  TMAP
+    (ts :: [(Type -> Type) -> Type])
+    (n :: Type -> Type)
+  where
+  TMAP (l ': ls) n = l n ': TMAP ls n
+  TMAP '[] _ = '[]
 
 type Request ::
   ((Type -> Type) -> Type -> Type) ->
@@ -161,7 +172,8 @@ instance
 
 call ::
   forall serverName s ts n sig m e b.
-  ( ToSig e s n,
+  ( Elem serverName (e n) ts,
+    ToSig e s n,
     HasLabelled (serverName :: Symbol) (Request s ts n) sig m
   ) =>
   (RespVal n b -> e n) ->
@@ -171,7 +183,8 @@ call f = sendLabelled @serverName (Call f)
 
 cast ::
   forall serverName s ts n sig m e.
-  ( ToSig e s n,
+  ( Elem serverName (e n) ts,
+    ToSig e s n,
     HasLabelled (serverName :: Symbol) (Request s ts n) sig m
   ) =>
   e n ->
@@ -181,7 +194,8 @@ cast f = sendLabelled @serverName (Cast f)
 
 timeoutCall ::
   forall serverName s ts n sig m e b.
-  ( ToSig e s n,
+  ( Elem serverName (e n) ts,
+    ToSig e s n,
     HasLabelled (serverName :: Symbol) (Request s ts n) sig m
   ) =>
   DiffTime ->
@@ -191,7 +205,8 @@ timeoutCall time f = sendLabelled @serverName (TimeoutCall time f)
 {-# INLINE timeoutCall #-}
 
 type HasServer (serverName :: Symbol) s ts n sig m =
-  ( HasLabelled serverName (Request s ts n) sig m
+  ( Elems serverName (TMAP ts n) (ToList (s n)),
+    HasLabelled serverName (Request s (TMAP ts n) n) sig m
   )
 
 runWithServer ::
@@ -248,6 +263,8 @@ data SigC n s where
   SigC1 :: C n %1 -> SigC n (C n)
   SigC2 :: D n %1 -> SigC n (D n)
 
+type instance ToList (SigC n) = '[C n, D n]
+
 instance ToSig C SigC n where
   toSig = SigC1
 
@@ -256,9 +273,7 @@ instance ToSig D SigC n where
 
 client ::
   forall n sig m.
-  ( MonadDelay n,
-    Has (Lift n) sig m,
-    HasServer "s" SigC '[C n, D n] n sig m
+  ( HasServer "s" SigC '[C, D] n sig m
   ) =>
   m ()
 client = do
@@ -267,7 +282,6 @@ client = do
     then pure ()
     else do
       cast @"s" $ D val
-      sendM @n $ threadDelay 0.3
       client
 
 server ::
@@ -275,6 +289,7 @@ server ::
   ( MonadSay n,
     MonadSTM n,
     MonadTime n,
+    MonadDelay n,
     Has (Lift n) sig m,
     Has (State Int) sig m,
     Has (Reader (TQueue n (Some n SigC))) sig m
@@ -283,10 +298,11 @@ server ::
 server = forever $ do
   withMessageChan @n @SigC $ \case
     SigC1 (C resp) -> withResp resp $ do
+      sendM @n $ threadDelay 0.3
       get @Int
     SigC2 (D i) -> do
       time <- sendM @n $ getCurrentTime
-      sendM @n $ say $ show (time, i)
+      sendM @n $ say $ show (i, time)
       modify @Int (+ i)
 
 runval ::
@@ -322,4 +338,4 @@ runval2 :: [String]
 runval2 = selectTraceEventsSay $ runSimTrace runval
 
 -- >>> runval2
--- ["(1970-01-01 00:00:00 UTC,1)","(1970-01-01 00:00:00.3 UTC,2)","(1970-01-01 00:00:00.6 UTC,4)","(1970-01-01 00:00:00.9 UTC,8)","(1970-01-01 00:00:01.2 UTC,16)","(1970-01-01 00:00:01.5 UTC,32)","(1970-01-01 00:00:01.8 UTC,64)"]
+-- ["(1,1970-01-01 00:00:00.3 UTC)","(2,1970-01-01 00:00:00.6 UTC)","(4,1970-01-01 00:00:00.9 UTC)","(8,1970-01-01 00:00:01.2 UTC)","(16,1970-01-01 00:00:01.5 UTC)","(32,1970-01-01 00:00:01.8 UTC)"]
