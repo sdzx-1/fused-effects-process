@@ -24,6 +24,7 @@ library
                    , Control.Effect.HasServer
                    , Control.Effect.Metric
                    , Control.Effect.T
+                   , Control.Effect.Texample
                    , Control.Effect.TH
 
                    , Control.Carrier.HasGroup

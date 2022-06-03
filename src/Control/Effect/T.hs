@@ -6,12 +6,10 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ImpredicativeTypes #-}
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE LinearTypes #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StandaloneKindSignatures #-}
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
@@ -21,23 +19,12 @@ module Control.Effect.T where
 
 import Control.Algebra (Algebra (..), type (:+:) (..))
 import Control.Carrier.Error.Either
-  ( Error,
-    Has,
-    runError,
-    throwError,
+  ( Has,
   )
 import Control.Carrier.Lift (Lift (..), sendM)
 import Control.Carrier.Reader
-  ( Reader,
-    ReaderC (..),
-    ask,
+  ( ReaderC (..),
     runReader,
-  )
-import Control.Carrier.State.Strict
-  ( State,
-    get,
-    modify,
-    runState,
   )
 import Control.Effect.Labelled
   ( HasLabelled,
@@ -45,9 +32,6 @@ import Control.Effect.Labelled
     runLabelled,
     sendLabelled,
   )
-import Control.Effect.TH (mkSigAndClass)
-import Control.Monad (void, when)
-import Control.Monad.Class.MonadFork (MonadFork (forkIO))
 import Control.Monad.Class.MonadSTM
   ( MonadSTM
       ( TMVar,
@@ -62,21 +46,16 @@ import Control.Monad.Class.MonadSTM
       ),
     STM,
   )
-import Control.Monad.Class.MonadSay (MonadSay (..))
-import Control.Monad.Class.MonadTime (DiffTime, MonadTime (..), diffUTCTime)
+import Control.Monad.Class.MonadTime (DiffTime)
 import Control.Monad.Class.MonadTimer
-  ( MonadDelay (..),
-    MonadTimer (timeout),
+  ( MonadTimer (timeout),
   )
 import Control.Monad.IOSim
   ( IOSim,
-    runSimTrace,
-    selectTraceEventsSay,
   )
 import Data.Kind
   ( Type,
   )
-import Data.Time (UTCTime)
 import GHC.TypeLits
   ( Symbol,
   )
@@ -328,82 +307,3 @@ runServer ::
   m a
 runServer chan = runReader chan . unHasMessageChanC . runLabelled
 {-# INLINE runServer #-}
-
---------------------------- example
-
-data C (n :: Type -> Type) where
-  C :: RespVal n Int %1 -> C n
-
-data D (n :: Type -> Type) where
-  D :: Int -> D n
-
-mkSigAndClass "SigC" [''C, ''D]
-
-client ::
-  forall n sig m.
-  ( Has (Error ()) sig m,
-    HasServer "s" SigC '[C, D] n sig m
-  ) =>
-  m ()
-client = forever $ do
-  val <- call @"s" C
-  when (val >= 1000) $ throwError ()
-  cast @"s" $ D val
-
-server ::
-  forall n sig m.
-  ( MonadSay n,
-    MonadSTM n,
-    MonadTime n,
-    MonadDelay n,
-    HasMessageChan "s" SigC n sig m,
-    Has (Lift n :+: Reader UTCTime :+: State Int) sig m
-  ) =>
-  m ()
-server = forever $ do
-  withMessageChan @"s" $ \case
-    SigC1 (C resp) -> withResp resp $ do
-      sendM @n $ threadDelay 0.3
-      get @Int
-    SigC2 (D i) -> do
-      modify (+ i)
-      val <- get @Int
-      startTime <- ask
-      time <- sendM @n $ getCurrentTime
-      sendM @n $ say $ show (val, time `diffUTCTime` startTime)
-
-runval ::
-  forall n.
-  ( MonadSay n,
-    MonadSTM n,
-    MonadFork n,
-    MonadDelay n,
-    MonadTimer n,
-    MonadTime n,
-    Algebra (Lift n) n
-  ) =>
-  n ()
-runval = do
-  s <- newMessageChan @n @SigC
-  time <- getCurrentTime
-
-  forkIO
-    . void
-    . runReader time
-    . runState @Int 1
-    . runServer @"s" s
-    $ server
-
-  void
-    . runWithServer @"s" s
-    . runError @()
-    $ client
-
-runval1 :: IO ()
-runval1 = runval
-
-runval2 :: [String]
-runval2 = selectTraceEventsSay $ runSimTrace runval
-
--- >>> runval2
--- ["(2,0.3s)","(4,0.6s)","(8,0.9s)","(16,1.2s)","(32,1.5s)","(64,1.8s)","(128,2.1s)","(256,2.4s)","(512,2.7s)","(1024,3s)"]
