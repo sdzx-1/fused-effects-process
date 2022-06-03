@@ -11,6 +11,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StandaloneKindSignatures #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
@@ -44,6 +45,7 @@ import Control.Effect.Labelled
     runLabelled,
     sendLabelled,
   )
+import Control.Effect.TH (mkSigAndClass)
 import Control.Monad (void, when)
 import Control.Monad.Class.MonadFork (MonadFork (forkIO))
 import Control.Monad.Class.MonadSTM
@@ -335,17 +337,7 @@ data C (n :: Type -> Type) where
 data D (n :: Type -> Type) where
   D :: Int -> D n
 
-data SigC n s where
-  SigC1 :: C n %1 -> SigC n (C n)
-  SigC2 :: D n %1 -> SigC n (D n)
-
-type instance ToList (SigC n) = '[C n, D n]
-
-instance ToSig C SigC n where
-  toSig = SigC1
-
-instance ToSig D SigC n where
-  toSig = SigC2
+mkSigAndClass "SigC" [''C, ''D]
 
 client ::
   forall n sig m.
