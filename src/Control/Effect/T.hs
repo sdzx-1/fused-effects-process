@@ -152,9 +152,8 @@ newtype RequestC s ts n m a = RequestC
   deriving (Functor, Applicative, Monad)
 
 instance
-  ( Monad n,
+  ( MonadSTM n,
     MonadTimer n,
-    MonadSTM n,
     Has (Lift n) sig m
   ) =>
   Algebra (Request s ts n :+: sig) (RequestC s ts n m)
@@ -181,8 +180,8 @@ instance
 
 call ::
   forall serverName s ts n sig m e b.
-  ( Elem serverName (e n) ts,
-    ToSig e s n,
+  ( ToSig e s n,
+    Elem serverName (e n) ts,
     HasLabelled (serverName :: Symbol) (Request s ts n) sig m
   ) =>
   (RespVal n b -> e n) ->
@@ -192,8 +191,8 @@ call f = sendLabelled @serverName (Call f)
 
 cast ::
   forall serverName s ts n sig m e.
-  ( Elem serverName (e n) ts,
-    ToSig e s n,
+  ( ToSig e s n,
+    Elem serverName (e n) ts,
     HasLabelled (serverName :: Symbol) (Request s ts n) sig m
   ) =>
   e n ->
@@ -203,8 +202,8 @@ cast f = sendLabelled @serverName (Cast f)
 
 timeoutCall ::
   forall serverName s ts n sig m e b.
-  ( Elem serverName (e n) ts,
-    ToSig e s n,
+  ( ToSig e s n,
+    Elem serverName (e n) ts,
     HasLabelled (serverName :: Symbol) (Request s ts n) sig m
   ) =>
   DiffTime ->
@@ -219,9 +218,9 @@ type HasServer (serverName :: Symbol) s ts n sig m =
   )
 
 runWithServer ::
-  forall serverName n s ts m a.
+  forall (serverName :: Symbol) n s ts m a.
   TQueue n (Some n s) ->
-  Labelled (serverName :: Symbol) (RequestC s ts n) m a ->
+  Labelled serverName (RequestC s ts n) m a ->
   m a
 runWithServer chan = runReader chan . unRequestC . runLabelled
 {-# INLINE runWithServer #-}
@@ -258,6 +257,9 @@ withResp (RespVal tmv) ma = do
 forever :: (Applicative f) => f () -> f b
 forever a = let a' = a *> a' in a'
 {-# INLINE forever #-}
+
+newMessageChan :: forall n s. MonadSTM n => n (TQueue n (Some n s))
+newMessageChan = newTQueueIO
 
 type HasMessageChan (symbol :: Symbol) s n sig m =
   (HasLabelled symbol (MessageChan s n) sig m)
@@ -390,7 +392,7 @@ runval ::
   ) =>
   n ()
 runval = do
-  s <- newTQueueIO
+  s <- newMessageChan @n @SigC
   time <- getCurrentTime
 
   forkIO
@@ -401,7 +403,7 @@ runval = do
     $ server
 
   void
-    . runWithServer @"s" @n s
+    . runWithServer @"s" s
     . runError @()
     $ client
 
