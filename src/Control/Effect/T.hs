@@ -58,6 +58,7 @@ import Control.Monad.Class.MonadSTM
         takeTMVar,
         writeTQueue
       ),
+    STM,
   )
 import Control.Monad.Class.MonadSay (MonadSay (..))
 import Control.Monad.Class.MonadTime (DiffTime, MonadTime (..), diffUTCTime)
@@ -92,6 +93,7 @@ inject ::
   e n ->
   Some n f
 inject = Some . toSig
+{-# INLINE inject #-}
 
 class
   ToSig
@@ -221,25 +223,24 @@ runWithServer ::
   TQueue n (Some n s) ->
   Labelled (serverName :: Symbol) (RequestC s ts n) m a ->
   m a
-runWithServer chan f =
-  runReader chan $ unRequestC $ runLabelled f
+runWithServer chan = runReader chan . unRequestC . runLabelled
 {-# INLINE runWithServer #-}
 
 instance Algebra (Lift (IOSim s)) (IOSim s) where
   alg hdl (LiftWith with) = with hdl
 
 withMessageChan ::
-  forall n s sig m.
+  forall symbol n s sig m.
   ( MonadSTM n,
     Has (Lift n) sig m,
-    Has (Reader (TQueue n (Some n s))) sig m
+    HasMessageChan symbol s n sig m
   ) =>
   (forall s0. s n s0 %1 -> m ()) ->
   m ()
 withMessageChan f = do
-  tc <- ask @(TQueue n (Some n s))
-  Some v <- sendM @n $ atomically $ readTQueue tc
+  Some v <- blockGetMessage @symbol
   f v
+{-# INLINE withMessageChan #-}
 
 withResp ::
   forall n sig m a.
@@ -257,6 +258,72 @@ withResp (RespVal tmv) ma = do
 forever :: (Applicative f) => f () -> f b
 forever a = let a' = a *> a' in a'
 {-# INLINE forever #-}
+
+type HasMessageChan (symbol :: Symbol) s n sig m =
+  (HasLabelled symbol (MessageChan s n) sig m)
+
+type MessageChan ::
+  ((Type -> Type) -> Type -> Type) ->
+  (Type -> Type) ->
+  (Type -> Type) ->
+  Type ->
+  Type
+data MessageChan s n m a where
+  GetChan :: MessageChan s n m (TQueue n (Some n s))
+  GetSTM :: MessageChan s n m (STM n (Some n s))
+  BlockGetMessage :: MessageChan s n m (Some n s)
+
+getChan ::
+  forall (symbol :: Symbol) n s sig m.
+  HasLabelled symbol (MessageChan s n) sig m =>
+  m (TQueue n (Some n s))
+getChan = sendLabelled @symbol GetChan
+{-# INLINE getChan #-}
+
+getSTM ::
+  forall (symbol :: Symbol) n s sig m.
+  HasLabelled symbol (MessageChan s n) sig m =>
+  m (STM n (Some n s))
+getSTM = sendLabelled @symbol GetSTM
+{-# INLINE getSTM #-}
+
+blockGetMessage ::
+  forall (symbol :: Symbol) n s sig m.
+  HasLabelled symbol (MessageChan s n) sig m =>
+  m (Some n s)
+blockGetMessage = sendLabelled @symbol BlockGetMessage
+{-# INLINE blockGetMessage #-}
+
+newtype MessageChanC s n m a = MessageChanC
+  { unHasMessageChanC :: ReaderC (TQueue n (Some n s)) m a
+  }
+  deriving (Functor, Applicative, Monad)
+
+instance
+  ( MonadSTM n,
+    Has (Lift n) sig m
+  ) =>
+  Algebra
+    (MessageChan s n :+: sig)
+    (MessageChanC s n m)
+  where
+  alg hdl sig ctx = MessageChanC $
+    ReaderC $ \c -> case sig of
+      L GetChan -> pure (c <$ ctx)
+      L GetSTM -> pure (readTQueue c <$ ctx)
+      L BlockGetMessage -> do
+        val <- sendM @n $ atomically $ readTQueue c
+        pure (val <$ ctx)
+      R signa -> alg (runReader c . unHasMessageChanC . hdl) signa ctx
+  {-# INLINE alg #-}
+
+runServer ::
+  forall (symbol :: Symbol) n s m a.
+  TQueue n (Some n s) ->
+  Labelled symbol (MessageChanC s n) m a ->
+  m a
+runServer chan = runReader chan . unHasMessageChanC . runLabelled
+{-# INLINE runServer #-}
 
 --------------------------- example
 
@@ -295,20 +362,19 @@ server ::
     MonadSTM n,
     MonadTime n,
     MonadDelay n,
-    Has (Lift n) sig m,
-    Has (State UTCTime :+: State Int) sig m,
-    Has (Reader (TQueue n (Some n SigC))) sig m
+    HasMessageChan "s" SigC n sig m,
+    Has (Lift n :+: Reader UTCTime :+: State Int) sig m
   ) =>
   m ()
 server = forever $ do
-  withMessageChan @n @SigC $ \case
+  withMessageChan @"s" $ \case
     SigC1 (C resp) -> withResp resp $ do
       sendM @n $ threadDelay 0.3
       get @Int
     SigC2 (D i) -> do
       modify (+ i)
       val <- get @Int
-      startTime <- get
+      startTime <- ask
       time <- sendM @n $ getCurrentTime
       sendM @n $ say $ show (val, time `diffUTCTime` startTime)
 
@@ -329,14 +395,15 @@ runval = do
 
   forkIO
     . void
-    . runReader s
-    . runState time
+    . runReader time
     . runState @Int 1
-    $ server @n
+    . runServer @"s" s
+    $ server
 
   void
     . runWithServer @"s" @n s
-    $ runError @() client
+    . runError @()
+    $ client
 
 runval1 :: IO ()
 runval1 = runval
