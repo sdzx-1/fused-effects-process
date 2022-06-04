@@ -43,6 +43,7 @@ library
                    , Process.Effect.TH
                    , Process.Effect.Type
                    , Process.Effect.Utils
+                   , Process.Effect.Network.Channel
                    , Process.Effect.Example.T1
                    , Process.Effect.Example.T2
 
@@ -85,6 +86,7 @@ library
                     , io-classes
                     , io-sim
                     , strict-stm
+                    , bytestring
     hs-source-dirs:   src
     default-language: Haskell2010
     ghc-options: -W
