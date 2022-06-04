@@ -47,6 +47,7 @@ import GHC.TypeLits
     natVal,
   )
 import Prelude hiding (replicate)
+import Control.Monad.IO.Class
 
 toi :: forall s. (KnownNat s) => K s -> Int
 toi _ = fromIntegral $ natVal (Proxy :: Proxy s)
@@ -57,7 +58,7 @@ getIndex v1 = toi . v1 $ def
 {-# INLINE getIndex #-}
 
 newtype MetriC v m a = MetriC {unMetric :: StateC (IntMap Int) m a}
-  deriving (Functor, Applicative, Monad)
+  deriving (Functor, Applicative, Monad, MonadIO)
 
 instance
   (Algebra sig m, Default v, NameVector v) =>

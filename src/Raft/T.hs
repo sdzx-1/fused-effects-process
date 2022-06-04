@@ -19,7 +19,7 @@
 
 module Raft.T where
 
-import Control.Algebra (Has)
+import Control.Algebra (type (:+:))
 import Control.Carrier.HasPeer
   ( HasPeer,
     PeerState (..),
@@ -28,7 +28,8 @@ import Control.Carrier.HasPeer
     runWithPeers,
   )
 import Control.Carrier.HasServer (HasServer, cast, runWithServer)
-import Control.Carrier.Metric
+import Control.Carrier.Metric.IO
+import Control.Carrier.Random.Gen
 import Control.Carrier.State.Strict
   ( State,
     get,
@@ -45,7 +46,7 @@ import Process.TChan (newTChanIO)
 import Process.TH
 import Process.Type
 import Process.Util
-import System.Random
+import System.Random (mkStdGen)
 import Prelude hiding (log)
 
 data Role = Master | Slave deriving (Show)
@@ -115,7 +116,7 @@ t0 = forever $ do
 
 t1 ::
   ( MonadIO m,
-    Has (State Role) sig m,
+    Has (State Role :+: Random) sig m,
     Has (Metric NodeMet) sig m,
     HasServer "log" SigLog '[Log] sig m,
     HasPeer "peer" SigRPC '[CallMsg, ChangeMaster] sig m
@@ -137,7 +138,7 @@ t1 = forever $ do
       inc all_c
       handleMsg @"peer" $ \case
         SigRPC1 (CallMsg rsp) -> withResp rsp $ do
-          liftIO $ randomRIO @Int (1, 1_000_000)
+          uniformR (1, 100_000)
         SigRPC2 (ChangeMaster rsp) -> withResp rsp $ do
           cast @"log" $ Log ""
           put Master
@@ -166,14 +167,17 @@ r1 = do
     . void
     . runWithServer @"log" logChan
     . runWithPeers @"peer" h
+    . runRandom (mkStdGen 1)
     . runMetric @NodeMet
     $ runState Master t1
 
-  forM_ hs $ \h' -> do
-    forkIO
-      . void
-      . runWithServer @"log" logChan
-      . runWithPeers @"peer" h'
+  forM_ hs $ \h' ->
+    do
+      forkIO
+        . void
+        . runWithServer @"log" logChan
+        . runWithPeers @"peer" h'
+      . runRandom (mkStdGen 2)
       . runMetric @NodeMet
       $ runState Slave t1
 

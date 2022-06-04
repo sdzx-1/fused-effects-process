@@ -47,6 +47,7 @@ import Control.Monad.Class.MonadSTM
       ),
     STM,
   )
+import Control.Monad.IO.Class (MonadIO)
 import Data.Kind
   ( Type,
   )
@@ -56,7 +57,9 @@ import GHC.TypeLits
 import Process.Effect.Type (Some (..))
 
 type HasMessageChan (symbol :: Symbol) s n sig m =
-  (HasLabelled symbol (MessageChan s n) sig m)
+  ( Has (Lift n) sig m,
+    HasLabelled symbol (MessageChan s n) sig m
+  )
 
 type MessageChan ::
   ((Type -> Type) -> Type -> Type) ->
@@ -93,7 +96,7 @@ blockGetMessage = sendLabelled @symbol BlockGetMessage
 newtype MessageChanC s n m a = MessageChanC
   { unHasMessageChanC :: ReaderC (TQueue n (Some n s)) m a
   }
-  deriving (Functor, Applicative, Monad)
+  deriving (Functor, Applicative, Monad, MonadIO)
 
 instance
   ( MonadSTM n,

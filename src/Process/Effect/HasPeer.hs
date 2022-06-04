@@ -19,7 +19,11 @@
 {-# LANGUAGE UndecidableInstances #-}
 
 module Process.Effect.HasPeer
-  ( addPeer,
+  ( HasPeer,
+    PeerState (..),
+    Peer,
+    NodeID (..),
+    addPeer,
     deletePeer,
     peerSize,
     getSelfNodeID,
@@ -57,11 +61,12 @@ import Control.Monad.Class.MonadSTM
   )
 import Control.Monad.Class.MonadTime (DiffTime)
 import Control.Monad.Class.MonadTimer (MonadTimer (timeout))
+import Control.Monad.IO.Class (MonadIO)
 import Data.Kind (Type)
 import qualified Data.Map as Map
 import Data.Map.Strict (Map)
 import GHC.TypeLits (Symbol)
-import Process.Effect.Type (RespVal (..), Some, ToSig, inject)
+import Process.Effect.Type (Elems, RespVal (..), Some, TMAP, ToList, ToSig, inject)
 
 newtype NodeID = NodeID Int deriving (Show, Eq, Ord)
 
@@ -78,6 +83,13 @@ data PeerState s ts n = PeerState
 
 ----------------------------------------------------------------
 
+type HasPeer (name :: Symbol) s ts n sig m =
+  ( Has (Lift n) sig m,
+    Elems name (TMAP ts n) (ToList (s n)),
+    HasLabelled name (Peer s (TMAP ts n) n) sig m
+  )
+
+----------------------------------------------------------------
 type Peer ::
   ((Type -> Type) -> Type -> Type) ->
   [Type] ->
@@ -230,7 +242,7 @@ type PeerC ::
 newtype PeerC s ts n m a = PeerC
   { unPeerC :: StateC (PeerState s ts n) m a
   }
-  deriving (Functor, Applicative, Monad)
+  deriving (Functor, Applicative, Monad, MonadIO)
 
 instance
   ( MonadSTM n,

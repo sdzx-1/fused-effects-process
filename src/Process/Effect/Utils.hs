@@ -17,26 +17,42 @@ module Process.Effect.Utils
     withResp,
     forever,
     newMessageChan,
+    handleMsg,
   )
 where
 
-import Control.Carrier.Error.Either
-  ( Has,
-  )
 import Control.Carrier.Lift (Lift (..), sendM)
+import Control.Effect.Labelled
 import Control.Monad.Class.MonadSTM
   ( MonadSTM
       ( TQueue,
         atomically,
         newTQueueIO,
-        putTMVar
+        putTMVar,
+        readTQueue
       ),
   )
+import GHC.TypeLits (Symbol)
 import Process.Effect.HasMessageChan
   ( HasMessageChan,
     blockGetMessage,
   )
+import Process.Effect.HasPeer
 import Process.Effect.Type (RespVal (..), Some (..))
+
+handleMsg ::
+  forall (name :: Symbol) n s ts sig m.
+  ( MonadSTM n,
+    Has (Lift n) sig m,
+    HasLabelled name (Peer s ts n) sig m
+  ) =>
+  (forall s0. s n (s0 n) %1 -> m ()) ->
+  m ()
+handleMsg f = do
+  chan <- getSelfTQueue @name
+  Some tc <- sendM @n $ atomically $ readTQueue chan
+  f tc
+{-# INLINE handleMsg #-}
 
 withMessageChan ::
   forall symbol n s sig m.
@@ -44,7 +60,7 @@ withMessageChan ::
     Has (Lift n) sig m,
     HasMessageChan symbol s n sig m
   ) =>
-  (forall s0. s n s0 %1 -> m ()) ->
+  (forall s0. s n (s0 n) %1 -> m ()) ->
   m ()
 withMessageChan f = do
   Some v <- blockGetMessage @symbol

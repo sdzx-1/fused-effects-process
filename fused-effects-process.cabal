@@ -44,6 +44,7 @@ library
                    , Process.Effect.Type
                    , Process.Effect.Utils
                    , Process.Effect.Example.T1
+                   , Process.Effect.Example.T2
 
                    , Example.Type
                    , Example.Server
@@ -68,6 +69,7 @@ library
     build-depends:    base >=4.14.3.0
                     , stm
                     , fused-effects
+                    , fused-effects-random
                     , optics
                     , fused-effects-optics
                     , containers

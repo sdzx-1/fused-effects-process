@@ -109,7 +109,7 @@ mkMetric
 client ::
   forall n sig m.
   ( MonadSay n,
-    Has (Lift n :+: Error ()) sig m,
+    Has (Error ()) sig m,
     HasServer "s" SigC '[C, D, Status] n sig m
   ) =>
   m ()
@@ -128,8 +128,7 @@ server ::
     MonadDelay n,
     HasMessageChan "s" SigC n sig m,
     Has
-      ( Lift n
-          :+: Metric Sc
+      ( Metric Sc
           :+: Reader UTCTime
           :+: State Int
       )

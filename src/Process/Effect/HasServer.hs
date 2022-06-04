@@ -68,9 +68,11 @@ import Process.Effect.Type
     ToSig,
     inject,
   )
+import Control.Monad.IO.Class (MonadIO)
 
 type HasServer (serverName :: Symbol) s ts n sig m =
-  ( Elems serverName (TMAP ts n) (ToList (s n)),
+  ( Has (Lift n) sig m,
+    Elems serverName (TMAP ts n) (ToList (s n)),
     HasLabelled serverName (Request s (TMAP ts n) n) sig m
   )
 
@@ -141,7 +143,7 @@ newtype RequestC s ts n m a = RequestC
   { unRequestC ::
       ReaderC (TQueue n (Some n s)) m a
   }
-  deriving (Functor, Applicative, Monad)
+  deriving (Functor, Applicative, Monad, MonadIO)
 
 instance
   ( MonadSTM n,
