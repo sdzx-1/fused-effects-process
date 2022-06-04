@@ -39,6 +39,7 @@ library
                    , Process.Timer
                    , Process.Effect.HasMessageChan
                    , Process.Effect.HasServer
+                   , Process.Effect.HasPeer
                    , Process.Effect.TH
                    , Process.Effect.Type
                    , Process.Effect.Utils
