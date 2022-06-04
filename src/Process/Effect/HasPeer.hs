@@ -51,14 +51,12 @@ import Control.Effect.Labelled
 import Control.Monad (forM)
 import Control.Monad.Class.MonadSTM
   ( MonadSTM
-      ( TMVar,
-        TQueue,
+      ( TQueue,
         atomically,
-        newEmptyTMVarIO,
-        takeTMVar,
         writeTQueue
       ),
   )
+import Control.Monad.Class.MonadSTM.Strict (StrictTMVar, newEmptyTMVarIO, takeTMVar)
 import Control.Monad.Class.MonadTime (DiffTime)
 import Control.Monad.Class.MonadTimer (MonadTimer (timeout))
 import Control.Monad.IO.Class (MonadIO)
@@ -121,7 +119,7 @@ data Peer s ts n m a where
   Cast :: (ToSig t s n) => NodeID -> t n -> Peer s ts n m ()
   ------------------------------------------------------------
   -- call the same message to all node
-  CallAll :: (ToSig t s n) => (RespVal n b -> t n) -> Peer s ts n m [(NodeID, TMVar n b)]
+  CallAll :: (ToSig t s n) => (RespVal n b -> t n) -> Peer s ts n m [(NodeID, StrictTMVar n b)]
   -- cast the same message to all node
   CastAll :: (ToSig t s n) => t n -> Peer s ts n m ()
 
@@ -216,7 +214,7 @@ callAll ::
     HasLabelled name (Peer s ts n) sig m
   ) =>
   (RespVal n b -> t n) ->
-  m [(NodeID, TMVar n b)]
+  m [(NodeID, StrictTMVar n b)]
 callAll fun = sendLabelled @name (CallAll fun)
 {-# INLINE callAll #-}
 

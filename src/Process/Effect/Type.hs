@@ -27,11 +27,7 @@ where
 
 import Control.Algebra (Algebra (..))
 import Control.Carrier.Lift (Lift (..))
-import Control.Monad.Class.MonadSTM
-  ( MonadSTM
-      ( TMVar
-      ),
-  )
+import Control.Monad.Class.MonadSTM.Strict (StrictTMVar)
 import Control.Monad.IOSim
   ( IOSim,
   )
@@ -40,6 +36,10 @@ import Data.Kind
   )
 import GHC.Base (Constraint)
 import GHC.TypeLits
+  ( ErrorMessage (ShowType, Text, (:<>:)),
+    Symbol,
+    TypeError,
+  )
 
 type Some :: (Type -> Type) -> ((Type -> Type) -> Type -> Type) -> Type
 data Some n f where
@@ -67,7 +67,7 @@ class
 type family ToList (a :: (Type -> Type)) :: [Type]
 
 data RespVal n a where
-  RespVal :: TMVar n a -> RespVal n a
+  RespVal :: StrictTMVar n a -> RespVal n a
 
 type family
   TMAP

@@ -28,10 +28,10 @@ import Control.Monad.Class.MonadSTM
       ( TQueue,
         atomically,
         newTQueueIO,
-        putTMVar,
         readTQueue
       ),
   )
+import Control.Monad.Class.MonadSTM.Strict (putTMVar)
 import GHC.TypeLits (Symbol)
 import Process.Effect.HasMessageChan
   ( HasMessageChan,

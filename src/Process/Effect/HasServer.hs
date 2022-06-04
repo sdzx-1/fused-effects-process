@@ -43,15 +43,15 @@ import Control.Monad.Class.MonadSTM
   ( MonadSTM
       ( TQueue,
         atomically,
-        newEmptyTMVarIO,
-        takeTMVar,
         writeTQueue
       ),
   )
+import Control.Monad.Class.MonadSTM.Strict (newEmptyTMVarIO, takeTMVar)
 import Control.Monad.Class.MonadTime (DiffTime)
 import Control.Monad.Class.MonadTimer
   ( MonadTimer (timeout),
   )
+import Control.Monad.IO.Class (MonadIO)
 import Data.Kind
   ( Type,
   )
@@ -68,7 +68,6 @@ import Process.Effect.Type
     ToSig,
     inject,
   )
-import Control.Monad.IO.Class (MonadIO)
 
 type HasServer (serverName :: Symbol) s ts n sig m =
   ( Has (Lift n) sig m,

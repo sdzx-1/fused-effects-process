@@ -24,7 +24,8 @@ import Control.Carrier.State.Strict
 import Control.Effect.Metric
 import Control.Monad (forM, forM_, void)
 import Control.Monad.Class.MonadFork
-import Control.Monad.Class.MonadSTM
+import Control.Monad.Class.MonadSTM hiding (readTMVar)
+import Control.Monad.Class.MonadSTM.Strict
 import Control.Monad.Class.MonadSay
 import Control.Monad.Class.MonadTime
 import Control.Monad.Class.MonadTimer
