@@ -17,7 +17,7 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Control.Effect.Texample where
+module Process.Effect.Example.T1 where
 
 import Control.Algebra (Algebra (..), type (:+:) (..))
 import Control.Carrier.Error.Either
@@ -48,39 +48,40 @@ import Control.Effect.Metric
     getAll,
     inc,
   )
-import Control.Effect.T
-  ( HasMessageChan,
-    HasServer,
-    RespVal,
-    ToList,
-    ToSig (..),
-    call,
-    cast,
-    forever,
-    newMessageChan,
-    runServer,
-    runWithServer,
-    withMessageChan,
-    withResp,
-  )
-import Control.Effect.TH (mkSigAndClass)
 import Control.Monad (void, when)
-import Control.Monad.Class.MonadFork (MonadFork (forkIO))
-import Control.Monad.Class.MonadSTM
+import Control.Monad.Class.MonadFork (MonadFork (forkIO), MonadThread (labelThread))
+import Control.Monad.Class.MonadSTM (MonadSTM)
 import Control.Monad.Class.MonadSay (MonadSay (..))
 import Control.Monad.Class.MonadTime (MonadTime (..), diffUTCTime)
 import Control.Monad.Class.MonadTimer
+  ( MonadDelay (..),
+    MonadTimer,
+  )
 import Control.Monad.IOSim
-  ( runSimTrace,
-    selectTraceEventsSay,
+  ( ppEvents,
+    runSimTrace,
+    traceEvents,
   )
 import Data.Kind
   ( Type,
   )
 import Data.Time (UTCTime)
+import Process.Effect.HasMessageChan (HasMessageChan, runServer)
+import Process.Effect.HasServer
+  ( HasServer,
+    call,
+    cast,
+    runWithServer,
+  )
+import Process.Effect.TH (mkSigAndClass)
+import Process.Effect.Type (RespVal, ToList, ToSig (..))
+import Process.Effect.Utils
+  ( forever,
+    newMessageChan,
+    withMessageChan,
+    withResp,
+  )
 import Process.TH (fromList, mkMetric)
-
---------------------------- example
 
 data C (n :: Type -> Type) where
   C :: RespVal n Int %1 -> C n
@@ -116,7 +117,7 @@ client = forever $ do
   sts <- call @"s" Status
   sendM @n $ say $ show sts
   val <- call @"s" C
-  when (val >= 1000) $ throwError ()
+  when (val >= 20) $ throwError ()
   cast @"s" $ D val
 
 server ::
@@ -141,7 +142,7 @@ server = forever $ do
   withMessageChan @"s" $ \case
     SigC1 (C resp) -> withResp resp $ do
       inc all_c
-      sendM @n $ threadDelay 0.3
+      sendM @n $ threadDelay 0.1
       get @Int
     SigC2 (D i) -> do
       inc all_d
@@ -170,13 +171,16 @@ runval = do
   s <- newMessageChan @n @SigC
   time <- getCurrentTime
 
-  forkIO
-    . void
-    . runReader time
-    . runMetric @Sc
-    . runState @Int 1
-    . runServer @"s" s
-    $ server
+  tid <-
+    forkIO
+      . void
+      . runReader time
+      . runMetric @Sc
+      . runState @Int 1
+      . runServer @"s" s
+      $ server
+
+  labelThread tid "server"
 
   void
     . runWithServer @"s" s
@@ -186,8 +190,12 @@ runval = do
 runval1 :: IO ()
 runval1 = runval
 
-runval2 :: [String]
-runval2 = selectTraceEventsSay $ runSimTrace runval
+runval2 :: IO ()
+runval2 =
+  writeFile "event.log"
+    . ppEvents
+    . traceEvents
+    . runSimTrace
+    $ runval
 
 -- >>> runval2
--- ["(1,[(\"all_all\",1),(\"all_c\",0),(\"all_d\",0)])","(2,0.3s)","(2,[(\"all_all\",4),(\"all_c\",1),(\"all_d\",1)])","(4,0.6s)","(4,[(\"all_all\",7),(\"all_c\",2),(\"all_d\",2)])","(8,0.9s)","(8,[(\"all_all\",10),(\"all_c\",3),(\"all_d\",3)])","(16,1.2s)","(16,[(\"all_all\",13),(\"all_c\",4),(\"all_d\",4)])","(32,1.5s)","(32,[(\"all_all\",16),(\"all_c\",5),(\"all_d\",5)])","(64,1.8s)","(64,[(\"all_all\",19),(\"all_c\",6),(\"all_d\",6)])","(128,2.1s)","(128,[(\"all_all\",22),(\"all_c\",7),(\"all_d\",7)])","(256,2.4s)","(256,[(\"all_all\",25),(\"all_c\",8),(\"all_d\",8)])","(512,2.7s)","(512,[(\"all_all\",28),(\"all_c\",9),(\"all_d\",9)])","(1024,3s)","(1024,[(\"all_all\",31),(\"all_c\",10),(\"all_d\",10)])"]

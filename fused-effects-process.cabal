@@ -23,9 +23,6 @@ library
                    , Control.Effect.HasPeer
                    , Control.Effect.HasServer
                    , Control.Effect.Metric
-                   , Control.Effect.T
-                   , Control.Effect.Texample
-                   , Control.Effect.TH
 
                    , Control.Carrier.HasGroup
                    , Control.Carrier.HasPeer
@@ -40,6 +37,12 @@ library
                    , Process.Util
                    , Process.TChan
                    , Process.Timer
+                   , Process.Effect.HasMessageChan
+                   , Process.Effect.HasServer
+                   , Process.Effect.TH
+                   , Process.Effect.Type
+                   , Process.Effect.Utils
+                   , Process.Effect.Example.T1
 
                    , Example.Type
                    , Example.Server

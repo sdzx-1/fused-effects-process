@@ -1,8 +1,7 @@
 module Main where
 
-import Control.Effect.T
-import qualified Control.Effect.Texample as T
 import Example.R (runmProcess)
+import qualified Process.Effect.Example.T1 as T
 import Raft.T as T
 
 main :: IO ()

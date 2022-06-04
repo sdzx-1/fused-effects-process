@@ -5,7 +5,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies #-}
 
-module Control.Effect.TH (mkSigAndClass) where
+module Process.Effect.TH (mkSigAndClass) where
 
 import Data.Maybe (fromMaybe)
 import Language.Haskell.TH
