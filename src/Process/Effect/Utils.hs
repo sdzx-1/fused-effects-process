@@ -17,7 +17,7 @@ module Process.Effect.Utils
     withResp,
     forever,
     newMessageChan,
-    handleMsg,
+    handlePeerMsg,
   )
 where
 
@@ -40,7 +40,7 @@ import Process.Effect.HasMessageChan
 import Process.Effect.HasPeer
 import Process.Effect.Type (RespVal (..), Some (..))
 
-handleMsg ::
+handlePeerMsg ::
   forall (name :: Symbol) n s ts sig m.
   ( MonadSTM n,
     Has (Lift n) sig m,
@@ -48,16 +48,15 @@ handleMsg ::
   ) =>
   (forall s0. s n (s0 n) %1 -> m ()) ->
   m ()
-handleMsg f = do
+handlePeerMsg f = do
   chan <- getSelfTQueue @name
   Some tc <- sendM @n $ atomically $ readTQueue chan
   f tc
-{-# INLINE handleMsg #-}
+{-# INLINE handlePeerMsg #-}
 
 withMessageChan ::
   forall symbol n s sig m.
   ( MonadSTM n,
-    Has (Lift n) sig m,
     HasMessageChan symbol s n sig m
   ) =>
   (forall s0. s n (s0 n) %1 -> m ()) ->

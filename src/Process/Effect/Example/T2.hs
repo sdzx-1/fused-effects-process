@@ -86,12 +86,13 @@ log ::
   ( MonadSay n,
     MonadSTM n,
     Has (Metric LogMet) sig m,
-    HasMessageChan "l" SigLog n sig m
+    HasMessageChan "log" SigLog n sig m
   ) =>
   m ()
 log = forever $ do
-  withMessageChan @"l" \case
-    SigLog1 (Log _) -> do
+  withMessageChan @"log" \case
+    SigLog1 (Log s) -> do
+      sendM @n $ say s
       inc all_all
       inc all_log
     SigLog2 Cal -> do
@@ -134,14 +135,15 @@ t1 = forever $ do
       put Slave
     Slave -> do
       inc all_c
-      handleMsg @"peer" \case
+      handlePeerMsg @"peer" \case
         SigRPC1 (CallMsg rsp) ->
           withResp rsp $ do
-            sendM @n $ threadDelay 0.1
+            sendM @n $ threadDelay 0.4
             uniformR (1, 100_000)
         SigRPC2 (ChangeMaster rsp) ->
           withResp rsp $ do
-            S.cast @"log" $ Log ""
+            nid <- getSelfNodeID @"peer"
+            S.cast @"log" $ Log $ show nid
             put Master
 
 r0 ::
@@ -174,7 +176,7 @@ r0 = do
       forkIO
         . void
         . runMetric @LogMet
-        $ runServer @"l" logChan log
+        $ runServer @"log" logChan log
 
       forkIO
         . void
@@ -201,4 +203,4 @@ r1 = r0 :: IO ()
 r2 = selectTraceEventsSay $ runSimTrace r0
 
 -- >>> r2
--- ["(0,0)","(9,9)","(10,19)","(10,29)","(10,39)"]
+-- ["(0,0)","NodeID 4","NodeID 1","(2,2)","NodeID 3","NodeID 4","(2,4)","NodeID 3","NodeID 2","NodeID 4","(3,7)","NodeID 3","NodeID 4","(2,9)","NodeID 2","NodeID 1","NodeID 3"]
